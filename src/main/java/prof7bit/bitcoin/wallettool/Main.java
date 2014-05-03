@@ -65,33 +65,39 @@ public class Main {
 		NetworkParameters params = wallet.getNetworkParameters();
 		KeyCrypter keyCrypter = wallet.getKeyCrypter();
 		List<ECKey> list = wallet.getKeychain();
+		String pass = "";
+		String out;
 		KeyParameter aesKey = null;
 		ECKey key_unenc;
 		
 		if (wallet.isEncrypted()){
-			String pass = input("Wallet is encrypted. Enter passphrase");
-			System.out.println("deriving AES key from passphrase...");
-			aesKey = keyCrypter.deriveKey(pass);
+			pass = input("Wallet is encrypted. Enter passphrase");
+			if (!pass.equals("")){
+				System.out.println("deriving AES key from passphrase...");
+				aesKey = keyCrypter.deriveKey(pass);
+			}else{
+				System.out.println("no passphrase entered, will skip decryption");
+			}
 		}
 		
 		for (ECKey key : list){
 			System.out.print(key.toAddress(params));
 			
 			if (key.isEncrypted()){
-				try {
-					key_unenc = key.decrypt(keyCrypter, aesKey);
-					System.out.print("   DECRYPTED ");
-					System.out.print(key_unenc.getPrivateKeyEncoded(params).toString());
-				} catch (KeyCrypterException e) {
-					System.out.print("       ERROR ");
-					System.out.print(key.getEncryptedPrivateKey().toString());
+				if (aesKey == null){
+					out = " KEY DECRYPTION SKIPPED";
+				}else{
+					try {
+						key_unenc = key.decrypt(keyCrypter, aesKey);
+						out = " DECRYPTED " + key_unenc.getPrivateKeyEncoded(params).toString(); 
+					} catch (KeyCrypterException e) {
+						out = " DECRYPTION ERROR " + key.getEncryptedPrivateKey().toString(); 
+					}
 				}
 			}else{
-				System.out.print(" UNENCRYPTED ");
-				System.out.print(key.getPrivateKeyEncoded(params).toString());
+				out = " UNENCRYPTED " + key.getPrivateKeyEncoded(params).toString();
 			}
-			
-			System.out.println();
+			System.out.println(out);
 		}
 	}
 	

@@ -1,14 +1,10 @@
 apply plugin: 'java'
 apply plugin: 'eclipse'
 
-version = '1.0.0'
-
 project.ext.mainClassName = "prof7bit.bitcoin.wallettool.Main"
-sourceCompatibility = 1.6
 
 repositories {
     mavenCentral()
-    maven { url "http://distribution.bitcoinj.googlecode.com/git/releases" }
     maven { url "https://raw.githubusercontent.com/bitcoin-solutions/mbhd-maven/master/releases" }
 }
 
@@ -17,21 +13,10 @@ dependencies {
 	compile 'org.slf4j:slf4j-simple:1.7.5'
 }
 
-task run(dependsOn: classes, type: JavaExec) {
-    dependsOn assemble 
-    main = project.mainClassName
-    classpath = sourceSets.main.runtimeClasspath
-    standardInput = System.in
-    ignoreExitValue = true
-}
-
-task dist(type: Jar) {
-    dependsOn build
+jar {
     from files(sourceSets.main.output.classesDir)
-    from files(sourceSets.main.output.resourcesDir)
-    //from {configurations.compile.collect {zipTree(it)}}
-    
-    from {configurations.compile.collect {it.isDirectory() ? it : zipTree(it) }} {
+    from files(sourceSets.main.output.resourcesDir)    
+    from {configurations.runtime.collect {it.isDirectory() ? it : zipTree(it) }} {
         // remove all signature files
         exclude "META-INF/*.SF"
         exclude "META-INF/*.DSA"
@@ -42,4 +27,3 @@ task dist(type: Jar) {
         attributes 'Main-Class': project.mainClassName
     }
 }
-
