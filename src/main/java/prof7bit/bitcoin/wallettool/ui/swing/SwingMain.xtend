@@ -15,18 +15,18 @@ import prof7bit.bitcoin.wallettool.MultibitWallet
 
 class SwingMain {
 	
-  	static var IWallet wallet
-  	static var filename = ""
-  	 
-    static def start() {
-        SwingUtilities.invokeLater [|
-        	wallet = new MultibitWallet
-        	wallet.promptFunction = [
+	static var IWallet wallet
+	static var filename = ""
+	
+	static def start() {
+		SwingUtilities.invokeLater [|
+			wallet = new MultibitWallet
+			wallet.promptFunction = [
 				JOptionPane.showInputDialog(it)
 			]
 			
-	        val frame = new JFrame("wallet-key-tool")
-	        frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE	        
+			val frame = new JFrame("wallet-key-tool")
+			frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE	        
 			val button = new JButton("open")
 			val table = new JTable			
 			
@@ -40,21 +40,21 @@ class SwingMain {
 				}
 			]
 			
-
+			
 			// layout
-
+			
 			frame.layout = new MigLayout("fill")			
 			frame.add(button, "wrap")
 			
 			val tablePane = new JScrollPane(table)
 			tablePane.viewportView = table
-        	tablePane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED 
-        	table.fillsViewportHeight = true
+			tablePane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED 
+			table.fillsViewportHeight = true
 			frame.add(tablePane, "grow, push")
 			
 			frame.preferredSize = new Dimension(1000, 500)
-	        frame.pack
-	        frame.visible = true
-        ]
-    }
+			frame.pack
+			frame.visible = true
+		]
+	}
 }
