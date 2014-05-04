@@ -10,15 +10,23 @@ Dump addresses and private keys from a multibit wallet file to the console
 
 you will find the runnable .jar file in build/libs/
 
-## I'm too lazy to do the above, where is the jar?
+## I'm too lazy to build it myself, where is the jar?
 
 click the "releases" link (github project page in the middle above the files listing) and look for the "wallet-key-tool.jar" file, download and run it as described below.
 
 ## how to run
 
     java -jar wallet-key-tool.jar <filename>
+    
+will ask for a password (if the file is encrypted), then dump the addresses 
+and keys to the console and exit. If you run it without file name
 
-Example session (I did not enter a passphrase, so no private keys to see here):
+    java -jar wallet-key-tool.jar
+
+it will show a simple Swing GUI where you can use a file dialog to
+select the wallet file.
+
+Example session in the console (I did not enter a passphrase, so no private keys to see here):
 
     java -jar build/libs/wallet-key-tool.jar /home/bernd/Schotter/Schotter.wallet 
     [main] INFO org.multibit.store.MultiBitWalletProtobufSerializer - Loading wallet extension org.multibit.walletProtect.2
