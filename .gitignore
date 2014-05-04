@@ -1,6 +1,7 @@
 .gradle
 build/
 bin/
+xtend-gen/
 *.swp
 *.classpath
 *.project

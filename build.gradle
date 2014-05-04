@@ -1,5 +1,15 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.xtend:xtend-gradle-plugin:0.0.5'
+    }
+}
+
 apply plugin: 'java'
 apply plugin: 'eclipse'
+apply plugin: 'xtend'
 
 project.ext.mainClassName = "prof7bit.bitcoin.wallettool.Main"
 
@@ -10,7 +20,8 @@ repositories {
 
 dependencies {
     compile "com.google:bitcoinj:0.11.2-MB-ALICE"
-	compile 'org.slf4j:slf4j-simple:1.7.5'
+    compile 'org.slf4j:slf4j-simple:1.7.5'
+    compile 'org.eclipse.xtend:org.eclipse.xtend.lib:2.5.+'
 }
 
 jar {
@@ -27,3 +38,10 @@ jar {
         attributes 'Main-Class': project.mainClassName
     }
 }
+
+// xtend plugin is currently broken, can't properly install
+// debug info. We disable this task and restore java compiler
+// destinationDir until the bug in the xtend plugin is fixed
+tasks.installMainXtendDebugInfo.enabled = false
+compileJava.destinationDir = sourceSets.main.output.classesDir
+

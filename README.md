@@ -4,9 +4,9 @@ Dump addresses and private keys from a multibit wallet file to the console
 
 ## how to build from source
 
-* have JDK 6 or 7 installed
+* have JDK 7 installed (6 will not work)
 * clone this repository
-* in the root directory execute: <pre>./gradlew build</pre>
+* in the root directory execute: <pre>./gradlew assemble</pre>
 
 you will find the runnable .jar file in build/libs/
 
@@ -33,6 +33,7 @@ Example session (I did not enter a passphrase, so no private keys to see here):
 ## How to import project in Eclipse
 
 * have the gradle plugin installed in Eclipse
+* have the Xtend plugin installed in Eclipse
 * import -> gradle -> gradle project
 * [browse] select the root folder of this project
 * [build model] and wait a few seconds
