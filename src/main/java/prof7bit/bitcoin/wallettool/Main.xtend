@@ -82,7 +82,7 @@ static class Main {
 						key_unenc = key.decrypt(keyCrypter, aesKey)
 						out = " DECRYPTED " + key_unenc.getPrivateKeyEncoded(params).toString 
 					} catch (KeyCrypterException e) {
-						out = " DECRYPTION ERROR " + key.getEncryptedPrivateKey().toString 
+						out = " DECRYPTION ERROR " + key.encryptedPrivateKey.toString 
 					}
 				}
 			}else{
@@ -94,13 +94,13 @@ static class Main {
 	
 	static def String input(String prompt){
 		val br = new BufferedReader(new InputStreamReader(System.in))
-	    print(prompt + ": ")
-	    try {
-	       br.readLine()
-	    } catch (IOException ioe) {
-	       println("IO error while reading interactive console input!")
-	       System.exit(1)
-	       ""
-	    }
+		print(prompt + ": ")
+		try {
+			br.readLine
+		} catch (IOException ioe) {
+			println("IO error while reading interactive console input!")
+			System.exit(1)
+			""
+		}
 	}
 }
