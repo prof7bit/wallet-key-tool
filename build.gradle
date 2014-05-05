@@ -40,3 +40,7 @@ jar {
     }
 }
 
+task areWeFreeOfASM3 << {
+    println(project.compileXtend.xtendClasspath.grep{it.name.contains("asm-3")}.isEmpty())
+}
+
