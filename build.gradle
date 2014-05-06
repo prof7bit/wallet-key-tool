@@ -23,6 +23,7 @@ dependencies {
     compile "com.google:bitcoinj:0.11.2-MB-ALICE"
     compile 'org.slf4j:slf4j-simple:1.7.+'
     compile 'com.miglayout:miglayout:3.7.+'
+    compile 'commons-cli:commons-cli:1.+'
 }
 
 jar {
@@ -38,4 +39,9 @@ jar {
     manifest {
         attributes 'Main-Class': project.mainClassName
     }
+}
+
+xtend {
+    xtendAsPrimaryDebugSource = true
+    hideSyntheticVariables = false
 }

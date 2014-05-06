@@ -27,7 +27,11 @@ class SwingMain {
 
         val laf = UIManager.installedLookAndFeels.findFirst[("Nimbus".equals(it.name))]
         if (laf != null) {
-            UIManager.lookAndFeel = laf.className
+            try {
+                UIManager.lookAndFeel = laf.className
+            } catch (Exception e) {
+                log.debug("could not set LAF", e)
+            }
         }
 
         SwingUtilities.invokeLater [ |
