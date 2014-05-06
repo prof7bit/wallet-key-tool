@@ -27,7 +27,7 @@ dependencies {
 
 jar {
     from files(sourceSets.main.output.classesDir)
-    from files(sourceSets.main.output.resourcesDir)    
+    from files(sourceSets.main.output.resourcesDir)
     from {configurations.runtime.collect {it.isDirectory() ? it : zipTree(it) }} {
         // remove all signature files
         exclude "META-INF/*.SF"
@@ -39,8 +39,3 @@ jar {
         attributes 'Main-Class': project.mainClassName
     }
 }
-
-task areWeFreeOfASM3 << {
-    println(project.compileXtend.xtendClasspath.grep{it.name.contains("asm-3")}.isEmpty())
-}
-

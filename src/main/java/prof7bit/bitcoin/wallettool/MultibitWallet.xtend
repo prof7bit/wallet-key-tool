@@ -9,9 +9,11 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
+import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.params.KeyParameter
 
 class MultibitWallet implements IWallet {
+    static val log = LoggerFactory.getLogger(MultibitWallet)
     var filename = ""
     var Wallet mbwallet
     var NetworkParameters mbparams
@@ -28,6 +30,7 @@ class MultibitWallet implements IWallet {
     }
 
     override load(String filename) {
+        log.debug("loading wallet file: " + filename)
         this.filename = filename
         var FileInputStream fileInputStream = null
         var BufferedInputStream stream = null
@@ -40,26 +43,28 @@ class MultibitWallet implements IWallet {
                 mbwallet = Wallet.loadFromFileStream(stream)
                 stream.close
                 fileInputStream.close
-
                 mbparams = mbwallet.networkParameters
                 encrypted = mbwallet.encrypted
                 if (encrypted) {
-                    val pass = promptFunction.apply("Wallet is encrypted. Enter passphrase")
+                    log.debug("wallet is encrypted")
+                    val pass = promptFunction.apply("Wallet is encrypted. Enter pass phrase")
                     if (pass == null || pass.length == 0) {
+                        log.debug("no pass phrase entered, will not attempt to decrypt")
                         aesKey = null
                     } else {
+                        log.debug("deriving AES key from pass phrase")
                         aesKey = mbwallet.keyCrypter.deriveKey(pass)
                     }
                 }
 
             } catch (UnreadableWalletException e) {
-                println("unreadable wallet file: " + filename)
+                log.error("unreadable wallet file: " + filename)
                 e.printStackTrace
             }
             stream.close
             fileInputStream.close
         } catch (FileNotFoundException e) {
-            println("file not found: " + filename)
+            log.error("file not found: " + filename)
         } catch (IOException e) {
             e.printStackTrace
         }
