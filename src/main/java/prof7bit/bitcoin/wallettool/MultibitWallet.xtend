@@ -3,12 +3,13 @@ package prof7bit.bitcoin.wallettool
 import com.google.bitcoin.core.NetworkParameters
 import com.google.bitcoin.core.Wallet
 import com.google.bitcoin.crypto.KeyCrypterException
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileInputStream
 import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.params.KeyParameter
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
-import java.io.BufferedInputStream
-import java.io.FileInputStream
 
 class MultibitWallet implements IWallet {
     static val log = LoggerFactory.getLogger(MultibitWallet)
@@ -18,14 +19,14 @@ class MultibitWallet implements IWallet {
     var (String)=>String promptFunction
     var loaded = false
 
-    override save(String filename) {
+    override save(File file) {
         throw new UnsupportedOperationException("TODO: auto-generated method stub")
     }
 
-    override load(String filename) {
-        log.debug("loading wallet file: " + filename)
+    override load(File file) {
+        log.debug("loading wallet file: " + file.path)
         try {
-            new BufferedInputStream(new FileInputStream(filename)).closeAfter [
+            new BufferedInputStream(new FileInputStream(file)).closeAfter [
                 mbwallet = Wallet.loadFromFileStream(it)
             ]
             mbparams = mbwallet.networkParameters
@@ -33,10 +34,8 @@ class MultibitWallet implements IWallet {
                 log.debug("wallet is encrypted")
                 val pass = promptFunction.apply("Wallet is encrypted. Enter pass phrase")
                 if (pass == null || pass.length == 0) {
-                    log.debug("no pass phrase entered, will not attempt to decrypt")
                     aesKey = null
                 } else {
-                    log.debug("deriving AES key from pass phrase")
                     aesKey = mbwallet.keyCrypter.deriveKey(pass)
                 }
             }
