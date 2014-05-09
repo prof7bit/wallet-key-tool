@@ -41,6 +41,7 @@ class MultibitWallet extends AbstractWallet {
                         try {
                             keychain.add(key.decrypt(wallet.keyCrypter, aesKey))
                         } catch (KeyCrypterException e) {
+                            // FIXME: creation date for watch only keys
                             keychain.add(new ECKey(null, key.pubKey))
                             log.error("DECRYPT ERROR: {} {}",
                                 key.toAddress(params).toString,
