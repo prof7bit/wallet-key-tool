@@ -1,13 +1,13 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
-import prof7bit.bitcoin.wallettool.IWallet
 import javax.swing.table.TableModel
 import javax.swing.event.TableModelListener
+import prof7bit.bitcoin.wallettool.AbstractWallet
 
 class WalletTableModel implements TableModel {
-    var IWallet wallet;
+    var AbstractWallet wallet;
 
-    new(IWallet wallet) {
+    new(AbstractWallet wallet) {
         this.wallet = wallet
     }
 
@@ -33,8 +33,8 @@ class WalletTableModel implements TableModel {
 
     override getValueAt(int rowIndex, int columnIndex) {
         switch columnIndex {
-            case 0: wallet.getAddress(rowIndex)
-            case 1: wallet.getKey(rowIndex)
+            case 0: wallet.getAddressStr(rowIndex)
+            case 1: wallet.getPrivkeyStr(rowIndex)
         }
     }
 

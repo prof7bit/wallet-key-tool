@@ -23,26 +23,33 @@ static class Main {
         } catch (IOException e) {
             log.stacktrace(e)
             System.exit(1)
-            ""
         }
+    ]
+
+    static val consoleAlertFunc = [
+        println(it)
+        return
     ]
 
     static def void main(String[] args) {
         try{
             val opt = parseOpt(args)
             if (opt.args.length == 0) {
-                SwingMain.start
+                SwingMain.start(opt)
             } else {
-                val filename = opt.args.get(0)
-                val wallet = new MultibitWallet
-                wallet.setPromptFunction(consolePromptFunc)
-                wallet.load(new File(filename))
-                wallet.dumpToConsole
+                consoleStart(opt)
             }
         } catch (Exception e){
             log.stacktrace(e)
             System.exit(1)
         }
+    }
+
+    static def consoleStart(CommandLine opt){
+        val filename = opt.args.get(0)
+        val wallet = new MultibitWallet(consolePromptFunc, consoleAlertFunc)
+        wallet.load(new File(filename))
+        wallet.dumpToConsole
     }
 
     static def CommandLine parseOpt(String[] args) {
