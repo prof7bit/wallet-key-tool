@@ -1,18 +1,16 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
-import javax.swing.table.TableModel
-import javax.swing.event.TableModelListener
-import prof7bit.bitcoin.wallettool.AbstractWallet
+import javax.swing.table.AbstractTableModel
+import prof7bit.bitcoin.wallettool.WalletKeyTool
 
-class WalletTableModel implements TableModel {
-    var AbstractWallet wallet;
+class WalletTableModel extends AbstractTableModel {
+    var WalletKeyTool kt;
 
-    new(AbstractWallet wallet) {
-        this.wallet = wallet
-    }
-
-    override addTableModelListener(TableModelListener l) {
-        //
+    new(WalletKeyTool kt) {
+        this.kt = kt
+        kt.notifyChangeFunc = [
+            fireTableDataChanged
+        ]
     }
 
     override getColumnClass(int columnIndex) {
@@ -28,25 +26,17 @@ class WalletTableModel implements TableModel {
     }
 
     override getRowCount() {
-        wallet.keyCount
+        kt.keyCount
     }
 
     override getValueAt(int rowIndex, int columnIndex) {
         switch columnIndex {
-            case 0: wallet.getAddressStr(rowIndex)
-            case 1: wallet.getPrivkeyStr(rowIndex)
+            case 0: kt.getAddressStr(rowIndex)
+            case 1: kt.getPrivkeyStr(rowIndex)
         }
     }
 
     override isCellEditable(int rowIndex, int columnIndex) {
         true
-    }
-
-    override removeTableModelListener(TableModelListener l) {
-        //
-    }
-
-    override setValueAt(Object aValue, int rowIndex, int columnIndex) {
-        //
     }
 }

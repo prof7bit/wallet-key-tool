@@ -47,9 +47,13 @@ static class Main {
 
     static def consoleStart(CommandLine opt){
         val filename = opt.args.get(0)
-        val wallet = new MultibitWallet(consolePromptFunc, consoleAlertFunc)
-        wallet.load(new File(filename))
-        wallet.dumpToConsole
+        new WalletKeyTool => [
+            promptFunc = consolePromptFunc
+            alertFunc = consoleAlertFunc
+            importExportStrategy = new MultibitStrategy
+            load(new File(filename), null)
+            dumpToConsole
+        ]
     }
 
     static def CommandLine parseOpt(String[] args) {

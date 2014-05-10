@@ -14,23 +14,16 @@ import javax.swing.filechooser.FileNameExtensionFilter
 import net.miginfocom.swing.MigLayout
 import org.apache.commons.cli.CommandLine
 import org.slf4j.LoggerFactory
-import prof7bit.bitcoin.wallettool.AbstractWallet
-import prof7bit.bitcoin.wallettool.MultibitWallet
+import prof7bit.bitcoin.wallettool.ImportExportStrategy
+import prof7bit.bitcoin.wallettool.MultibitStrategy
+import prof7bit.bitcoin.wallettool.WalletKeyTool
 
 import static javax.swing.UIManager.*
 
 class SwingMain extends JFrame{
     static val log = LoggerFactory.getLogger(SwingMain)
 
-    var AbstractWallet wallet = null
-
-    val promptFunc = [
-        JOptionPane.showInputDialog(this, it)
-    ]
-
-    val alertFunc = [
-        JOptionPane.showMessageDialog(this, it)
-    ]
+    var WalletKeyTool keyTool = null
 
     var JButton btn_load
     var JButton btn_save
@@ -40,20 +33,22 @@ class SwingMain extends JFrame{
         super("wallet-key-tool")
         defaultCloseOperation = JFrame.EXIT_ON_CLOSE
 
+        keyTool = new WalletKeyTool => [
+            promptFunc = [prompt(it)]
+            alertFunc = [alert(it)]
+        ]
+
         btn_load = new JButton("load...")
         btn_save = new JButton("save as...")
         table = new JTable
+        table.model = new WalletTableModel(keyTool)
 
         btn_load.addActionListener [
-            loadWallet("MultiBit wallet file", "wallet") [|
-                new MultibitWallet(promptFunc, alertFunc)
-            ]
+            loadWallet("MultiBit wallet file", "wallet", MultibitStrategy)
         ]
 
         btn_save.addActionListener [
-            saveWallet("MultiBit wallet file", "wallet") [|
-                new MultibitWallet(promptFunc, alertFunc)
-            ]
+            saveWallet("MultiBit wallet file", "wallet", MultibitStrategy)
         ]
 
         // layout
@@ -71,44 +66,46 @@ class SwingMain extends JFrame{
         visible = true
     }
 
-    def saveWallet(String filterDesc, String filterExt, ()=>AbstractWallet factory){
-        if (wallet != null){
-            val fd = new FileDialogEx(this, "select wallet file");
-            fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
-            if (fd.showSave) {
-                // FIXME: don't allow overwriting of old wallet
-                var file = fd.selectedFile
-                if (!file.path.endsWith("." + filterExt)){
-                    file = new File(file.path + "." + filterExt)
-                }
-                val pass = promptFunc.apply("please enter a pass phrase to encrypt the wallet")
-                if (pass != null && pass.length > 0){
-                    val pass2 = promptFunc.apply("please repeat the pass phrase")
-                    if (pass2 != null && pass2.length > 0 && pass2.equals(pass)) {
-                        val temp_wallet = factory.apply
-                        temp_wallet.load(wallet)
-                        temp_wallet.save(file, pass)
-                    } else {
-                        alertFunc.apply("pass phrase not repeated correctly")
-                        log.info("saving canceled because of pass phrase mismatch")
-                    }
-                }else{
-                    log.info("saving canceled")
-                }
+    def saveWallet(String filterDesc, String filterExt, Class<? extends ImportExportStrategy> strat) {
+        val fd = new FileDialogEx(this, "select wallet file");
+        fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
+        if (fd.showSave) {
+            // FIXME: don't allow overwriting of old wallet
+            var file = fd.selectedFile
+            if (!file.path.endsWith("." + filterExt)){
+                file = new File(file.path + "." + filterExt)
             }
-        } else {
-            log.error("no wallet loaded, nothing to save")
+            val pass = prompt("please enter a pass phrase to encrypt the wallet")
+            if (pass != null && pass.length > 0){
+                val pass2 = prompt("please repeat the pass phrase")
+                if (pass2 != null && pass2.length > 0 && pass2.equals(pass)) {
+                    keyTool.importExportStrategy = strat.newInstance
+                    keyTool.save(file, pass)
+                } else {
+                    alert("pass phrase not repeated correctly")
+                    log.info("saving canceled because of pass phrase mismatch")
+                }
+            }else{
+                log.info("saving canceled")
+            }
         }
     }
 
-    def loadWallet(String filterDesc, String filterExt, ()=>AbstractWallet factory){
+    def loadWallet(String filterDesc, String filterExt, Class<? extends ImportExportStrategy> strat) {
         val fd = new FileDialogEx(this, "select wallet file")
         fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
         if (fd.showOpen) {
-            wallet = factory.apply
-            wallet.load(fd.selectedFile)
-            table.model = new WalletTableModel(wallet)
+            keyTool.importExportStrategy = strat.newInstance
+            keyTool.load(fd.selectedFile, null)
         }
+    }
+
+    def prompt(String msg) {
+        JOptionPane.showInputDialog(this, msg)
+    }
+
+    def alert(String msg) {
+        JOptionPane.showMessageDialog(this, msg)
     }
 
     static def start(CommandLine opt) {

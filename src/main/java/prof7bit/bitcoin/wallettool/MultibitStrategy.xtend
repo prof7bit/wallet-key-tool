@@ -5,6 +5,7 @@ import com.google.bitcoin.core.Wallet
 import com.google.bitcoin.crypto.KeyCrypterException
 import com.google.bitcoin.crypto.KeyCrypterScrypt
 import java.io.File
+import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.params.KeyParameter
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
@@ -12,25 +13,23 @@ import static extension prof7bit.bitcoin.wallettool.Ext.*
 /**
  * Load and save keys in MultiBit wallet format
  */
-class MultibitWallet extends AbstractWallet {
+class MultibitStrategy extends ImportExportStrategy {
+    val log = LoggerFactory.getLogger(MultibitStrategy)
 
-    new((String)=>String promptFunction, (String)=>void alertFunction) {
-        super(promptFunction, alertFunction)
-    }
-
-    /**
-     * Load keys from the MultiBit .wallet file
-     */
-    override load(File file) {
+    override load(File file, String pass) {
         log.debug("loading wallet file: " + file.path)
         var KeyParameter aesKey = null
         try {
             val wallet = Wallet.loadFromFile(file)
-            params = wallet.networkParameters
+            walletKeyTool.params = wallet.networkParameters
             if (wallet.encrypted) {
                 log.debug("wallet is encrypted")
-                val pass = promptFunction.apply("Wallet is encrypted. Enter pass phrase")
-                if (pass != null && pass.length > 0) {
+                if (pass == null){
+                    val pass_answered = walletKeyTool.prompt("Wallet is encrypted. Enter pass phrase")
+                    if (pass_answered != null && pass_answered.length > 0) {
+                        aesKey = wallet.keyCrypter.deriveKey(pass_answered)
+                    }
+                }else{
                     aesKey = wallet.keyCrypter.deriveKey(pass)
                 }
             }
@@ -39,41 +38,40 @@ class MultibitWallet extends AbstractWallet {
                 if (key.encrypted){
                     if (aesKey != null) {
                         try {
-                            keychain.add(key.decrypt(wallet.keyCrypter, aesKey))
+                            walletKeyTool.keychain.add(key.decrypt(wallet.keyCrypter, aesKey))
                         } catch (KeyCrypterException e) {
                             // FIXME: creation date for watch only keys
-                            keychain.add(new ECKey(null, key.pubKey))
+                            walletKeyTool.keychain.add(new ECKey(null, key.pubKey))
                             log.error("DECRYPT ERROR: {} {}",
-                                key.toAddress(params).toString,
+                                key.toAddress(walletKeyTool.params).toString,
                                 key.encryptedPrivateKey.toString
                             )
                         }
                     } else {
-                        keychain.add(new ECKey(null, key.pubKey))
+                        walletKeyTool.keychain.add(new ECKey(null, key.pubKey))
                     }
                 } else {
-                    keychain.add(key)
+                    walletKeyTool.keychain.add(key)
                 }
             }
             log.info("MultiBit wallet with {} addresses has been loaded",
-                keychain.length
+                walletKeyTool.keychain.length
             )
+            true
         } catch (Exception e) {
             log.stacktrace(e)
+            false
         }
     }
 
-    /**
-     * Save keys to a MultiBit .wallet file
-     */
     override save(File file, String passphrase) {
-        val wallet = new Wallet(params)
-        for (key : keychain){
+        val wallet = new Wallet(walletKeyTool.params)
+        for (key : walletKeyTool.keychain){
             if (key.hasPrivKey) {
                 wallet.keychain.add(key.copy)
             } else {
                 log.error("could not add {} to wallet because private key is missing",
-                    key.toAddress(params)
+                    key.toAddress(walletKeyTool.params)
                 )
             }
         }
@@ -87,12 +85,14 @@ class MultibitWallet extends AbstractWallet {
                 wallet.keychain.length,
                 file.path
             )
-            if (wallet.keychain.length < keychain.length) {
+            if (wallet.keychain.length < walletKeyTool.keychain.length) {
                 msg = msg.concat("\nsome private keys were missing, see error log for details!")
             }
-            alertFunction.apply(msg)
+            walletKeyTool.alert(msg)
+            true
         } else {
-            alertFunction.apply("there were no private keys, wallet has not been exported")
+            walletKeyTool.alert("there were no private keys, wallet has not been exported")
+            false
         }
     }
 }
