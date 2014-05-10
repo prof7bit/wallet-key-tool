@@ -17,8 +17,8 @@ class SwingMain extends JFrame{
         super("wallet-key-tool")
         defaultCloseOperation = JFrame.EXIT_ON_CLOSE
 
-        val panelA = new WalletPanel
-        val panelB = new WalletPanel
+        val panelA = new WalletPanel(this)
+        val panelB = new WalletPanel(this)
 
         panelA.otherKeyTool = panelB.keyTool
         panelA.otherName = "Wallet B"

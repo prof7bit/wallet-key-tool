@@ -1,5 +1,6 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
+import java.awt.Frame
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.io.File
@@ -22,57 +23,59 @@ import static extension prof7bit.bitcoin.wallettool.Ext.*
 
 class WalletPanel extends JPanel{
     val log = LoggerFactory.getLogger(this.class)
+    val Frame parentFrame
 
-    @Property var WalletKeyTool keyTool = null
+    @Property var WalletKeyTool keyTool = new WalletKeyTool => [
+        promptFunc = [prompt(it)]
+        alertFunc = [alert(it)]
+    ]
     @Property var WalletKeyTool otherKeyTool = null
     @Property var String otherName = ""
 
-    var JButton btn_load
-    var JButton btn_save
-    var JTable table
-
-    new() {
-        super()
-
-        keyTool = new WalletKeyTool => [
-            promptFunc = [prompt(it)]
-            alertFunc = [alert(it)]
+    val btn_load = new JButton("load...") => [
+        addActionListener [
+            loadWallet("MultiBit wallet file", "wallet", MultibitStrategy)
         ]
+    ]
 
-        btn_load = new JButton("load...")
-        btn_save = new JButton("save as...")
-        table = new JTable
-        table.model = new WalletTableModel(keyTool)
+    val btn_save = new JButton("save as...") => [
+        addActionListener [
+            saveWallet("MultiBit wallet file", "wallet", MultibitStrategy)
+        ]
+    ]
 
-        table.addMouseListener(new MouseDownListener[evt|
+    val JTable table = new JTable => [
+        model = new WalletTableModel(keyTool)
+        addMouseListener(new MouseDownListener[evt|
             if (evt.popupTrigger) {
-                val row = table.rowAtPoint(evt.point)
-                val inside = (row >= 0 && row < table.model.rowCount)
-                new JPopupMenu => [pop|
+                val row = rowAtPoint(evt.point)
+                val inside = (row >= 0 && row < model.rowCount)
+                new JPopupMenu => [popup|
                     if (inside){
-                        table.selectionModel.setSelectionInterval(row, row)
+                        selectionModel.setSelectionInterval(row, row)
                         new JMenuItem("copy address to clipboard") => [
+                            popup.add(it)
                             addActionListener [
                                 copyToClipboard(row, 0)
                             ]
-                            pop.add(it)
                         ]
                         new JMenuItem("copy private key to clipboard") => [
+                            popup.add(it)
                             addActionListener [
                                 copyToClipboard(row, 1)
                             ]
-                            pop.add(it)
                         ]
                         new JMenuItem("copy selected key to " + otherName) => [
+                            popup.add(it)
                             addActionListener [
                                 if (otherKeyTool.params == null){
                                     otherKeyTool.params = keyTool.params
                                 }
                                 otherKeyTool.add(keyTool.get(row))
                             ]
-                            pop.add(it)
                         ]
                         new JMenuItem("move selected key to " + otherName) => [
+                            popup.add(it)
                             addActionListener [
                                 if (otherKeyTool.params == null){
                                     otherKeyTool.params = keyTool.params
@@ -80,37 +83,35 @@ class WalletPanel extends JPanel{
                                 otherKeyTool.add(keyTool.get(row))
                                 keyTool.remove(row)
                             ]
-                            pop.add(it)
                         ]
                         new JMenuItem("Remove selected key") => [
+                            popup.add(it)
                             addActionListener [
                                 keyTool.remove(row)
                             ]
-                            pop.add(it)
                         ]
                     }
-                    new JMenuItem("Insert new key") => [
-                        pop.add(it)
+                    new JMenuItem("Add new key") => [
+                        popup.add(it)
+                        addActionListener [
+                            new AddKeyDialog(parentFrame, keyTool)
+                        ]
                     ]
                     new JMenuItem("Clear list") => [
+                        popup.add(it)
                         addActionListener [
                             keyTool.clear
                         ]
-                        pop.add(it)
                     ]
-                    pop.show(table, evt.x, evt.y)
+                    popup.show(table, evt.x, evt.y)
                 ]
             }
         ])
+    ]
 
-
-        btn_load.addActionListener [
-            loadWallet("MultiBit wallet file", "wallet", MultibitStrategy)
-        ]
-
-        btn_save.addActionListener [
-            saveWallet("MultiBit wallet file", "wallet", MultibitStrategy)
-        ]
+    new(Frame parentFrame) {
+        super()
+        this.parentFrame = parentFrame
 
         // layout
 
@@ -125,11 +126,18 @@ class WalletPanel extends JPanel{
         visible = true
     }
 
+    def copyToClipboard(int row, int col){
+        val s = this.table.model.getValueAt(row, col) as String
+        val selection = new StringSelection(s);
+        val clipboard = Toolkit.defaultToolkit.systemClipboard
+        clipboard.setContents(selection, selection);
+    }
+
     def saveWallet(String filterDesc, String filterExt, Class<? extends ImportExportStrategy> strat) {
         if (keyTool.keyCount == 0){
             alert("Wallet is empty, nothing to save")
         } else {
-            val fd = new FileDialogEx(this, "select wallet file");
+            val fd = new FileDialogEx(parentFrame, "select wallet file");
             fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
             if (fd.showSave) {
                 // FIXME: don't allow overwriting of old wallet
@@ -155,7 +163,7 @@ class WalletPanel extends JPanel{
     }
 
     def loadWallet(String filterDesc, String filterExt, Class<? extends ImportExportStrategy> strat) {
-        val fd = new FileDialogEx(this, "select wallet file")
+        val fd = new FileDialogEx(parentFrame, "select wallet file")
         fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
         if (fd.showOpen) {
             keyTool.importExportStrategy = strat
@@ -176,11 +184,5 @@ class WalletPanel extends JPanel{
         JOptionPane.showMessageDialog(this, msg)
     }
 
-    def copyToClipboard(int row, int col){
-        val s = table.model.getValueAt(row, col) as String
-        val selection = new StringSelection(s);
-        val clipboard = Toolkit.defaultToolkit.systemClipboard
-        clipboard.setContents(selection, selection);
-    }
 }
 
