@@ -1,5 +1,7 @@
 package prof7bit.bitcoin.wallettool
 
+import com.google.bitcoin.core.AddressFormatException
+import com.google.bitcoin.core.DumpedPrivateKey
 import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.NetworkParameters
 import java.io.File
@@ -89,6 +91,22 @@ class WalletKeyTool {
     def dumpToConsole() {
         for (i : 0 ..< keyCount) {
             println(getAddressStr(i) + " " + getPrivkeyStr(i))
+        }
+    }
+
+    def ECKey privkeyStrToECKey(String privkey){
+        try {
+            new DumpedPrivateKey(params, privkey).key
+        } catch (AddressFormatException e) {
+            null
+        }
+    }
+
+    def String ECKeyToAddressStr(ECKey key){
+        if (key == null){
+            null
+        } else {
+            key.toAddress(params).toString
         }
     }
 }
