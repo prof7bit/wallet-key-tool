@@ -5,9 +5,12 @@ import com.google.bitcoin.core.NetworkParameters
 import java.io.File
 import java.util.ArrayList
 import java.util.List
+import org.slf4j.LoggerFactory
+
 import static extension prof7bit.bitcoin.wallettool.Ext.*
 
 class WalletKeyTool {
+    val log = LoggerFactory.getLogger(this.class)
     @Property var (String)=>String promptFunc = []
     @Property var (String)=>void alertFunc = []
     @Property var (Object)=>void notifyChangeFunc = []
@@ -70,10 +73,16 @@ class WalletKeyTool {
     def add(ECKey key){
         for (existing : keychain){
             if (existing.equals(key)){
+                log.info("duplicate {} not added", key.toAddress(params))
                 return
             }
         }
         keychain.add(key.copy)
+        notifyChange
+    }
+
+    def clear(){
+        keychain.clear
         notifyChange
     }
 

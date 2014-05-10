@@ -5,6 +5,6 @@ import java.io.File
 abstract class ImportExportStrategy {
     @Property var WalletKeyTool walletKeyTool
 
-    abstract def Boolean load(File file, String pass)
-    abstract def Boolean save(File file, String pass)
+    abstract def void load(File file, String pass)
+    abstract def void save(File file, String pass)
 }

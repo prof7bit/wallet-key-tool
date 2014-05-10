@@ -11,23 +11,21 @@ import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JTable
 import javax.swing.ScrollPaneConstants
-import javax.swing.SwingUtilities
-import javax.swing.UIManager
 import javax.swing.filechooser.FileNameExtensionFilter
 import net.miginfocom.swing.MigLayout
-import org.apache.commons.cli.CommandLine
 import org.slf4j.LoggerFactory
 import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.MultibitStrategy
 import prof7bit.bitcoin.wallettool.WalletKeyTool
 
-import static javax.swing.UIManager.*
+import static extension prof7bit.bitcoin.wallettool.Ext.*
 
 class WalletPanel extends JPanel{
-    static val log = LoggerFactory.getLogger(WalletPanel)
+    val log = LoggerFactory.getLogger(this.class)
 
     @Property var WalletKeyTool keyTool = null
     @Property var WalletKeyTool otherKeyTool = null
+    @Property var String otherName = ""
 
     var JButton btn_load
     var JButton btn_save
@@ -65,7 +63,7 @@ class WalletPanel extends JPanel{
                             ]
                             pop.add(it)
                         ]
-                        new JMenuItem("copy selected key to other wallet") => [
+                        new JMenuItem("copy selected key to " + otherName) => [
                             addActionListener [
                                 if (otherKeyTool.params == null){
                                     otherKeyTool.params = keyTool.params
@@ -74,7 +72,7 @@ class WalletPanel extends JPanel{
                             ]
                             pop.add(it)
                         ]
-                        new JMenuItem("move selected key to other wallet") => [
+                        new JMenuItem("move selected key to " + otherName) => [
                             addActionListener [
                                 if (otherKeyTool.params == null){
                                     otherKeyTool.params = keyTool.params
@@ -92,6 +90,12 @@ class WalletPanel extends JPanel{
                         ]
                     }
                     new JMenuItem("Insert new key") => [
+                        pop.add(it)
+                    ]
+                    new JMenuItem("Clear list") => [
+                        addActionListener [
+                            keyTool.clear
+                        ]
                         pop.add(it)
                     ]
                     pop.show(table, evt.x, evt.y)
@@ -122,26 +126,30 @@ class WalletPanel extends JPanel{
     }
 
     def saveWallet(String filterDesc, String filterExt, Class<? extends ImportExportStrategy> strat) {
-        val fd = new FileDialogEx(this, "select wallet file");
-        fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
-        if (fd.showSave) {
-            // FIXME: don't allow overwriting of old wallet
-            var file = fd.selectedFile
-            if (!file.path.endsWith("." + filterExt)){
-                file = new File(file.path + "." + filterExt)
-            }
-            val pass = prompt("please enter a pass phrase to encrypt the wallet")
-            if (pass != null && pass.length > 0){
-                val pass2 = prompt("please repeat the pass phrase")
-                if (pass2 != null && pass2.length > 0 && pass2.equals(pass)) {
-                    keyTool.importExportStrategy = strat
-                    keyTool.save(file, pass)
-                } else {
-                    alert("pass phrase not repeated correctly")
-                    log.info("saving canceled because of pass phrase mismatch")
+        if (keyTool.keyCount == 0){
+            alert("Wallet is empty, nothing to save")
+        } else {
+            val fd = new FileDialogEx(this, "select wallet file");
+            fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
+            if (fd.showSave) {
+                // FIXME: don't allow overwriting of old wallet
+                var file = fd.selectedFile
+                if (!file.path.endsWith("." + filterExt)){
+                    file = new File(file.path + "." + filterExt)
                 }
-            }else{
-                log.info("saving canceled")
+                val pass = prompt("please enter a pass phrase to encrypt the wallet")
+                if (pass != null && pass.length > 0){
+                    val pass2 = prompt("please repeat the pass phrase")
+                    if (pass2 != null && pass2.length > 0 && pass2.equals(pass)) {
+                        keyTool.importExportStrategy = strat
+                        keyTool.save(file, pass)
+                    } else {
+                        alert("pass phrase not repeated correctly")
+                        log.info("saving canceled because of pass phrase mismatch")
+                    }
+                }else{
+                    log.info("saving canceled")
+                }
             }
         }
     }
@@ -151,7 +159,12 @@ class WalletPanel extends JPanel{
         fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
         if (fd.showOpen) {
             keyTool.importExportStrategy = strat
-            keyTool.load(fd.selectedFile, null)
+            try {
+                keyTool.load(fd.selectedFile, null)
+            } catch (Exception e) {
+                log.stacktrace(e)
+                alert(e.toString)
+            }
         }
     }
 
@@ -168,20 +181,6 @@ class WalletPanel extends JPanel{
         val selection = new StringSelection(s);
         val clipboard = Toolkit.defaultToolkit.systemClipboard
         clipboard.setContents(selection, selection);
-    }
-
-    static def start(CommandLine opt) {
-        val laf = UIManager.installedLookAndFeels.findFirst[("Nimbus".equals(it.name))]
-        if (laf != null) {
-            try {
-                UIManager.lookAndFeel = laf.className
-            } catch (Exception e) {
-                log.debug("could not set LAF", e)
-            }
-        }
-        SwingUtilities.invokeLater [|
-            new WalletPanel
-        ]
     }
 }
 

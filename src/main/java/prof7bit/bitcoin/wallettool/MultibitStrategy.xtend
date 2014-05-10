@@ -14,54 +14,48 @@ import static extension prof7bit.bitcoin.wallettool.Ext.*
  * Load and save keys in MultiBit wallet format
  */
 class MultibitStrategy extends ImportExportStrategy {
-    val log = LoggerFactory.getLogger(MultibitStrategy)
+    val log = LoggerFactory.getLogger(this.class)
 
     override load(File file, String pass) {
         log.debug("loading wallet file: " + file.path)
         var KeyParameter aesKey = null
-        try {
-            val wallet = Wallet.loadFromFile(file)
-            walletKeyTool.params = wallet.networkParameters
-            if (wallet.encrypted) {
-                log.debug("wallet is encrypted")
-                if (pass == null){
-                    val pass_answered = walletKeyTool.prompt("Wallet is encrypted. Enter pass phrase")
-                    if (pass_answered != null && pass_answered.length > 0) {
-                        aesKey = wallet.keyCrypter.deriveKey(pass_answered)
-                    }
-                }else{
-                    aesKey = wallet.keyCrypter.deriveKey(pass)
+        val wallet = Wallet.loadFromFile(file)
+        walletKeyTool.params = wallet.networkParameters
+        if (wallet.encrypted) {
+            log.debug("wallet is encrypted")
+            if (pass == null){
+                val pass_answered = walletKeyTool.prompt("Wallet is encrypted. Enter pass phrase")
+                if (pass_answered != null && pass_answered.length > 0) {
+                    aesKey = wallet.keyCrypter.deriveKey(pass_answered)
                 }
+            }else{
+                aesKey = wallet.keyCrypter.deriveKey(pass)
             }
+        }
 
-            for (key : wallet.keychain){
-                if (key.encrypted){
-                    if (aesKey != null) {
-                        try {
-                            walletKeyTool.keychain.add(key.decrypt(wallet.keyCrypter, aesKey))
-                        } catch (KeyCrypterException e) {
-                            // FIXME: creation date for watch only keys
-                            walletKeyTool.keychain.add(new ECKey(null, key.pubKey))
-                            log.error("DECRYPT ERROR: {} {}",
-                                key.toAddress(walletKeyTool.params).toString,
-                                key.encryptedPrivateKey.toString
-                            )
-                        }
-                    } else {
-                        walletKeyTool.keychain.add(new ECKey(null, key.pubKey))
+        for (key : wallet.keychain){
+            if (key.encrypted){
+                if (aesKey != null) {
+                    try {
+                        walletKeyTool.add(key.decrypt(wallet.keyCrypter, aesKey))
+                    } catch (KeyCrypterException e) {
+                        // FIXME: creation date for watch only keys
+                        walletKeyTool.add(new ECKey(null, key.pubKey))
+                        log.error("DECRYPT ERROR: {} {}",
+                            key.toAddress(walletKeyTool.params).toString,
+                            key.encryptedPrivateKey.toString
+                        )
                     }
                 } else {
-                    walletKeyTool.keychain.add(key)
+                    walletKeyTool.add(new ECKey(null, key.pubKey))
                 }
+            } else {
+                walletKeyTool.add(key)
             }
-            log.info("MultiBit wallet with {} addresses has been loaded",
-                walletKeyTool.keychain.length
-            )
-            true
-        } catch (Exception e) {
-            log.stacktrace(e)
-            false
         }
+        log.info("MultiBit wallet with {} addresses has been loaded",
+            wallet.keychain.length
+        )
     }
 
     override save(File file, String passphrase) {
@@ -89,10 +83,8 @@ class MultibitStrategy extends ImportExportStrategy {
                 msg = msg.concat("\nsome private keys were missing, see error log for details!")
             }
             walletKeyTool.alert(msg)
-            true
         } else {
             walletKeyTool.alert("there were no private keys, wallet has not been exported")
-            false
         }
     }
 }

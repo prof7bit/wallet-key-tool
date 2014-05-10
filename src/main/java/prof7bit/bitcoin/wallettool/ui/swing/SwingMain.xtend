@@ -19,8 +19,11 @@ class SwingMain extends JFrame{
 
         val panelA = new WalletPanel
         val panelB = new WalletPanel
+
         panelA.otherKeyTool = panelB.keyTool
+        panelA.otherName = "Wallet B"
         panelB.otherKeyTool = panelA.keyTool
+        panelB.otherName = "Wallet A"
 
         new JTabbedPane => [
             addTab("Wallet A", panelA)
