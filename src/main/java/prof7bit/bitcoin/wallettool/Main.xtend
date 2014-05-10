@@ -50,7 +50,7 @@ static class Main {
         new WalletKeyTool => [
             promptFunc = consolePromptFunc
             alertFunc = consoleAlertFunc
-            importExportStrategy = new MultibitStrategy
+            importExportStrategy = MultibitStrategy
             load(new File(filename), null)
             dumpToConsole
         ]

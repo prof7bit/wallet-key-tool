@@ -11,9 +11,9 @@ class WalletKeyTool {
     @Property var (String)=>String promptFunc = []
     @Property var (String)=>void alertFunc = []
     @Property var (Object)=>void notifyChangeFunc = []
-    @Property var ImportExportStrategy importExportStrategy
     @Property var NetworkParameters params = null
     @Property var List<ECKey> keychain = new ArrayList
+    var ImportExportStrategy importExportStrategy
 
     def prompt(String msg){
         promptFunc.apply(msg)
@@ -27,9 +27,9 @@ class WalletKeyTool {
         notifyChangeFunc.apply(null)
     }
 
-    def void setImportExportStrategy(ImportExportStrategy s){
-        _importExportStrategy = s
-        s.walletKeyTool = this
+    def void setImportExportStrategy(Class<? extends ImportExportStrategy> strat){
+        importExportStrategy = strat.newInstance
+        importExportStrategy.walletKeyTool = this
     }
 
     def load(File file, String pass){
@@ -68,6 +68,11 @@ class WalletKeyTool {
     }
 
     def add(ECKey key){
+        for (existing : keychain){
+            if (existing.equals(key)){
+                return
+            }
+        }
         keychain.add(key.copy)
         notifyChange
     }

@@ -134,7 +134,7 @@ class WalletPanel extends JPanel{
             if (pass != null && pass.length > 0){
                 val pass2 = prompt("please repeat the pass phrase")
                 if (pass2 != null && pass2.length > 0 && pass2.equals(pass)) {
-                    keyTool.importExportStrategy = strat.newInstance
+                    keyTool.importExportStrategy = strat
                     keyTool.save(file, pass)
                 } else {
                     alert("pass phrase not repeated correctly")
@@ -150,7 +150,7 @@ class WalletPanel extends JPanel{
         val fd = new FileDialogEx(this, "select wallet file")
         fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
         if (fd.showOpen) {
-            keyTool.importExportStrategy = strat.newInstance
+            keyTool.importExportStrategy = strat
             keyTool.load(fd.selectedFile, null)
         }
     }
