@@ -5,13 +5,14 @@ import com.google.bitcoin.core.NetworkParameters
 import java.io.File
 import java.util.ArrayList
 import java.util.List
+import static extension prof7bit.bitcoin.wallettool.Ext.*
 
 class WalletKeyTool {
     @Property var (String)=>String promptFunc = []
     @Property var (String)=>void alertFunc = []
     @Property var (Object)=>void notifyChangeFunc = []
     @Property var ImportExportStrategy importExportStrategy
-    @Property var NetworkParameters params
+    @Property var NetworkParameters params = null
     @Property var List<ECKey> keychain = new ArrayList
 
     def prompt(String msg){
@@ -44,21 +45,31 @@ class WalletKeyTool {
         keychain.length
     }
 
-    def getKeyPair(int i) {
+    def get(int i) {
         keychain.get(i)
     }
 
     def getAddressStr(int i) {
-        getKeyPair(i).toAddress(params).toString
+        get(i).toAddress(params).toString
     }
 
     def getPrivkeyStr(int i) {
-        val key = getKeyPair(i)
+        val key = get(i)
         if (key.hasPrivKey) {
             key.getPrivateKeyEncoded(params).toString
         } else {
             "WATCH ONLY"
         }
+    }
+
+    def remove(int i){
+        keychain.remove(i)
+        notifyChange
+    }
+
+    def add(ECKey key){
+        keychain.add(key.copy)
+        notifyChange
     }
 
     def dumpToConsole() {

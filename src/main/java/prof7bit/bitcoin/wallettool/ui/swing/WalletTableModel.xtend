@@ -35,8 +35,4 @@ class WalletTableModel extends AbstractTableModel {
             case 1: kt.getPrivkeyStr(rowIndex)
         }
     }
-
-    override isCellEditable(int rowIndex, int columnIndex) {
-        true
-    }
 }

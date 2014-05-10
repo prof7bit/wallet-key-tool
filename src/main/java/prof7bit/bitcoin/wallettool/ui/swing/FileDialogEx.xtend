@@ -1,18 +1,18 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
-import java.awt.Frame
+import java.awt.Component
+import java.awt.Dimension
 import java.io.File
 import javax.swing.JFileChooser
-import java.awt.Dimension
 
 /**
  * A file dialog that will remember the last folder it has been used in
  */
 class FileDialogEx extends JFileChooser {
     static var current_directory = new File("")
-    var Frame parent
+    var Component parent
 
-    new(Frame parent, String title){
+    new(Component parent, String title){
         super(title)
         preferredSize = new Dimension(600, 500)
         this.parent = parent
