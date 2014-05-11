@@ -1,6 +1,10 @@
 # wallet-key-tool
 
-Dump addresses and private keys from a multibit wallet file to the console
+Dump addresses and private keys from a multibit wallet
+(there will be more wallet file formats supported
+soonish[TM]) to the console or use a GUI to add/remove
+keys from the wallet, move them from one wallet to
+another wallet, etc.
 
 ## how to build from source
 
@@ -12,25 +16,41 @@ you will find the runnable .jar file in build/libs/
 
 ## I'm too lazy to build it myself, where is the jar?
 
-click the "releases" link (github project page in the middle above the files listing) and look for the "wallet-key-tool.jar" file, download and run it as described below.
+click the "releases" link (github project page in the
+middle above the files listing) and look for the
+"wallet-key-tool.jar" file, download and run it as
+described below.
+
+This release version might be a bit behind the latest
+master branch, so I recommend to getting the source and
+build it yourself, its really not that complicated, the
+gradle build system does a wonderful job of automating
+it all, you don't even need gradle to be installed, it
+will download it for you.
+
 
 ## how to run
 
     java -jar wallet-key-tool.jar <filename>
-    
-will ask for a password (if the file is encrypted), then dump the addresses 
-and keys to the console and exit. If you run it without file name
+
+will ask for a password (if the file is encrypted), then dump
+the addresses and keys to the console and exit. If you run it
+without file name
 
     java -jar wallet-key-tool.jar
 
 it will show a simple Swing GUI where you can use a file dialog to
-select the wallet file.
+open the wallet file, a tabular interface to edit the wallet contents
+comfortably using the mouse, move keys between two wallets and the
+ability to export the edited files as new wallet files in all
+supported file formats (currently only MultiBit).
 
-Example session in the console (I did not enter a passphrase, so no private keys to see here):
+Example session in the console (I did not enter a passphrase,
+so no private keys to see here):
 
-    java -jar build/libs/wallet-key-tool.jar /home/bernd/Schotter/Schotter.wallet 
+    java -jar build/libs/wallet-key-tool.jar /home/bernd/Schotter/Schotter.wallet
     [main] INFO org.multibit.store.MultiBitWalletProtobufSerializer - Loading wallet extension org.multibit.walletProtect.2
-    Wallet is encrypted. Enter passphrase: 
+    Wallet is encrypted. Enter passphrase:
     no passphrase entered, will skip decryption
     1QKm5sWXuFJ6Zrvqw7NR7gYXyipPSqfv4n KEY DECRYPTION SKIPPED
     1DrL3o6ZMAGttc96SPxqTo2yooq52P62kf KEY DECRYPTION SKIPPED
