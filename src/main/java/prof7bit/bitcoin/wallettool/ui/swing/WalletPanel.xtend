@@ -90,6 +90,24 @@ class WalletPanel extends JPanel{
                                 keyTool.remove(row)
                             ]
                         ]
+                        new JMenuItem("Fetch creation date from blockchain.info") => [
+                            popup.add(it)
+                            addActionListener [
+                                keyTool.doRemoteFetchCreationDate(row)
+                            ]
+                        ]
+                        new JMenuItem("Fetch balance from blockchain.info") => [
+                            popup.add(it)
+                            addActionListener [
+                                keyTool.doRemoteFetchBalance(row)
+                            ]
+                        ]
+//                        new JMenuItem("Fetch all data for all keys from blockchain.info") => [
+//                            popup.add(it)
+//                            addActionListener [
+//                                keyTool.doRemoteUpdateAll
+//                            ]
+//                        ]
                     }
                     new JMenuItem("Add new key") => [
                         popup.add(it)

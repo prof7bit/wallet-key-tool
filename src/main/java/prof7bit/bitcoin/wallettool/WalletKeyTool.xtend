@@ -6,6 +6,7 @@ import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.NetworkParameters
 import java.io.File
 import java.util.ArrayList
+import java.util.Date
 import java.util.List
 import org.slf4j.LoggerFactory
 
@@ -18,6 +19,8 @@ class WalletKeyTool {
     @Property var (Object)=>void notifyChangeFunc = []
     @Property var NetworkParameters params = null
     @Property var List<ECKey> keychain = new ArrayList
+    @Property var List<KeyExtraInfo> extrainfo = new ArrayList
+
     var ImportExportStrategy importExportStrategy
 
     def prompt(String msg){
@@ -46,12 +49,41 @@ class WalletKeyTool {
         importExportStrategy.save(file, pass)
     }
 
+    def add(ECKey key){
+        fixCreationDate(key)
+        for (existing : keychain){
+            if (existing.equals(key)){
+                log.info("duplicate {} not added", key.toAddress(params))
+                return
+            }
+        }
+        keychain.add(key.copy)
+        extrainfo.add(new KeyExtraInfo)
+        notifyChange
+    }
+
+    def remove(int i){
+        keychain.remove(i)
+        extrainfo.remove(i)
+        notifyChange
+    }
+
+    def clear(){
+        keychain.clear
+        extrainfo.clear
+        notifyChange
+    }
+
     def getKeyCount() {
         keychain.length
     }
 
     def get(int i) {
         keychain.get(i)
+    }
+
+    def getExtraInfo(int i){
+        extrainfo.get(i)
     }
 
     def getAddressStr(int i) {
@@ -67,26 +99,29 @@ class WalletKeyTool {
         }
     }
 
-    def remove(int i){
-        keychain.remove(i)
+    def getCreationTimeSeconds(int i) {
+        get(i).creationTimeSeconds
+    }
+
+    def getBalance(int i){
+        getExtraInfo(i).balance
+    }
+
+    def getLabel(int i){
+        getExtraInfo(i).label
+    }
+
+    def setCreationTimeSeconds(int i, long time) {
+        get(i).creationTimeSeconds = time
         notifyChange
     }
 
-    def add(ECKey key){
-        fixCreationDate(key)
-        for (existing : keychain){
-            if (existing.equals(key)){
-                log.info("duplicate {} not added", key.toAddress(params))
-                return
-            }
-        }
-        keychain.add(key.copy)
-        notifyChange
+    def setBalance(int i, long balance){
+        getExtraInfo(i).balance = balance
     }
 
-    def clear(){
-        keychain.clear
-        notifyChange
+    def setLabel(int i, String label){
+        getExtraInfo(i).label = label
     }
 
     def dumpToConsole() {
@@ -108,6 +143,29 @@ class WalletKeyTool {
             null
         } else {
             key.toAddress(params).toString
+        }
+    }
+
+    def doRemoteFetchCreationDate(int i){
+        val d = RemoteAddressInfo.getFirstSeen(getAddressStr(i))
+        if (d > 0){
+            get(i).creationTimeSeconds = d
+            notifyChange
+        } else {
+            //  0 means not yet seen, set time to today
+            // -1 means error, don't do anything
+            if (d == 0){
+                get(i).creationTimeSeconds = new Date().time / 1000L
+                notifyChange
+            }
+        }
+    }
+
+    def doRemoteFetchBalance(int i){
+        val b = RemoteAddressInfo.getBalance(getAddressStr(i))
+        if (b > -1) {
+            setBalance(i, b)
+            notifyChange
         }
     }
 

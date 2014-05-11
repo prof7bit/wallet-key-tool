@@ -78,7 +78,7 @@ class MultibitStrategy extends ImportExportStrategy {
                 )
             }
         }
-        if (wallet.keychain.length > 0){
+        if (wallet.keychain.length + wallet.watchedScripts.length > 0){
             val scrypt = new KeyCrypterScrypt
             val aesKey = scrypt.deriveKey(passphrase)
             wallet.encrypt(scrypt, aesKey)
@@ -86,15 +86,20 @@ class MultibitStrategy extends ImportExportStrategy {
             wallet.setLastBlockSeenHeight(0)
             wallet.saveToFile(file)
             var msg = String.format("A new MultiBit wallet with %d addresses has been written to %s",
-                wallet.keychain.length,
+                wallet.keychain.length + wallet.watchedScripts.length,
                 file.path
             )
-            if (wallet.keychain.length < walletKeyTool.keychain.length) {
-                msg = msg.concat("\nsome private keys were missing, see error log for details!")
+            if (wallet.watchedScripts.length > 0) {
+                msg = msg.concat(String.format(
+                    "\n%d private keys were missing, exported them as watch-only." +
+                    "\n(watch-only is currently not really supported by MultiBit," +
+                    "\nit won't crash but it also probably won't be very useful.",
+                    wallet.watchedScripts.length
+                ))
             }
             walletKeyTool.alert(msg)
         } else {
-            walletKeyTool.alert("there were no private keys, wallet has not been exported")
+            walletKeyTool.alert("there were no addresses or keys, wallet has not been exported")
         }
     }
 }
