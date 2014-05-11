@@ -21,7 +21,7 @@ class FileDialogEx extends JFileChooser {
 
     def showOpen(){
         if (showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
-            current_directory = selectedFile
+            current_directory = selectedFile.parentFile
             true
         } else {
             false
@@ -30,7 +30,7 @@ class FileDialogEx extends JFileChooser {
 
     def showSave(){
         if (showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
-            current_directory = selectedFile
+            current_directory = selectedFile.parentFile
             true
         } else {
             false
