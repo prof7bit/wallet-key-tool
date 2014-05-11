@@ -34,20 +34,27 @@ class MultibitStrategy extends ImportExportStrategy {
         }
 
         for (key : wallet.keychain){
+            log.trace("processing {} creation time {}",
+                key.toAddress(wallet.params), key.creationTimeSeconds
+            )
             if (key.encrypted){
                 if (aesKey != null) {
                     try {
                         walletKeyTool.add(key.decrypt(wallet.keyCrypter, aesKey))
                     } catch (KeyCrypterException e) {
-                        // FIXME: creation date for watch only keys
-                        walletKeyTool.add(new ECKey(null, key.pubKey))
+                        val watch_only_key = new ECKey(null, key.pubKey)
+                        watch_only_key.creationTimeSeconds = key.creationTimeSeconds
+                        walletKeyTool.add(watch_only_key)
                         log.error("DECRYPT ERROR: {} {}",
                             key.toAddress(walletKeyTool.params).toString,
                             key.encryptedPrivateKey.toString
                         )
                     }
                 } else {
-                    walletKeyTool.add(new ECKey(null, key.pubKey))
+                    val watch_only_key = new ECKey(null, key.pubKey)
+                    watch_only_key.creationTimeSeconds = key.creationTimeSeconds
+                    walletKeyTool.add(watch_only_key)
+                    log.info("imported {} as WATCH ONLY", watch_only_key.toAddress(wallet.params))
                 }
             } else {
                 walletKeyTool.add(key)
@@ -60,11 +67,13 @@ class MultibitStrategy extends ImportExportStrategy {
 
     override save(File file, String passphrase) {
         val wallet = new Wallet(walletKeyTool.params)
+        log.debug("")
         for (key : walletKeyTool.keychain){
             if (key.hasPrivKey) {
-                wallet.keychain.add(key.copy)
+                wallet.addKey(key.copy)
             } else {
-                log.error("could not add {} to wallet because private key is missing",
+                wallet.addWatchedAddress(key.toAddress(walletKeyTool.params), key.creationTimeSeconds)
+                log.error("set {} as WATCH ONLY because private key is missing",
                     key.toAddress(walletKeyTool.params)
                 )
             }
@@ -74,6 +83,7 @@ class MultibitStrategy extends ImportExportStrategy {
             val aesKey = scrypt.deriveKey(passphrase)
             wallet.encrypt(scrypt, aesKey)
             wallet.setDescription("created by wallet-key-tool")
+            wallet.setLastBlockSeenHeight(0)
             wallet.saveToFile(file)
             var msg = String.format("A new MultiBit wallet with %d addresses has been written to %s",
                 wallet.keychain.length,
