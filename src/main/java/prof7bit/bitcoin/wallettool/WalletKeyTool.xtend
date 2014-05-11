@@ -62,6 +62,14 @@ class WalletKeyTool {
         notifyChange
     }
 
+    def addKeyFromOtherInstance(WalletKeyTool other, int i){
+        val key = other.get(i)
+        val extra = other.getExtraInfo(i)
+        keychain.add(key)
+        extrainfo.add(extra)
+        notifyChange
+    }
+
     def remove(int i){
         keychain.remove(i)
         extrainfo.remove(i)

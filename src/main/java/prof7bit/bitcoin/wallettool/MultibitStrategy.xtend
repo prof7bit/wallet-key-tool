@@ -91,9 +91,8 @@ class MultibitStrategy extends ImportExportStrategy {
             )
             if (wallet.watchedScripts.length > 0) {
                 msg = msg.concat(String.format(
-                    "\n%d private keys were missing, exported them as watch-only." +
-                    "\n(watch-only is currently not really supported by MultiBit," +
-                    "\nit won't crash but it also probably won't be very useful.",
+                    "\n%d private keys were missing, exported them as watch-only. (watch-only is currently "
+                    + "\nnot really supported by MultiBit, the result might not be what you expect.",
                     wallet.watchedScripts.length
                 ))
             }

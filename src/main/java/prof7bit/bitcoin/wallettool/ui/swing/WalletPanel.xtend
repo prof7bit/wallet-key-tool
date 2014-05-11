@@ -71,7 +71,7 @@ class WalletPanel extends JPanel{
                                 if (otherKeyTool.params == null){
                                     otherKeyTool.params = keyTool.params
                                 }
-                                otherKeyTool.add(keyTool.get(row))
+                                otherKeyTool.addKeyFromOtherInstance(keyTool, row)
                             ]
                         ]
                         new JMenuItem("move selected key to " + otherName) => [
@@ -80,7 +80,7 @@ class WalletPanel extends JPanel{
                                 if (otherKeyTool.params == null){
                                     otherKeyTool.params = keyTool.params
                                 }
-                                otherKeyTool.add(keyTool.get(row))
+                                otherKeyTool.addKeyFromOtherInstance(keyTool, row)
                                 keyTool.remove(row)
                             ]
                         ]
