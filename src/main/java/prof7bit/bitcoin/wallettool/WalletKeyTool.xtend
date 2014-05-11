@@ -113,11 +113,11 @@ class WalletKeyTool {
 
     /**
      * we don't want keys with missing creation date. Especially MultiBit has a bug
-     * where it starts behaving strange if creation date is set to 0, it will either
-     * behave strange when opening such a wallet and/or refuse to reset the block
-     * chain. Therefore we ensure that no key has a creation time earlier than the
-     * time stamp of the genesis block of its network. Also MultiBit will refuse to
-     * open and sync if not time > genesis_time so I need to add 1 more second to it.
+     * where it starts behaving strange if creation date is not at least one second
+     * later than that of the genesis block, it will either behave strange when
+     * opening such a wallet and/or refuse to reset the block chain. Therefore we
+     * ensure that no key has a creation time earlier than the time stamp of the
+     * genesis block of its network plus 1 second.
      */
     def fixCreationDate(ECKey key){
         if (key.creationTimeSeconds <= params.genesisBlock.timeSeconds){
