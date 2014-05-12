@@ -28,6 +28,7 @@ dependencies {
 
 jar {
     from files(sourceSets.main.output.classesDir)
+    from files("build/classes/main-unenhanced")
     from files(sourceSets.main.output.resourcesDir)
     from {configurations.runtime.collect {it.isDirectory() ? it : zipTree(it) }} {
         // remove all signature files
