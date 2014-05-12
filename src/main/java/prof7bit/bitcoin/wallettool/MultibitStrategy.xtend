@@ -18,6 +18,9 @@ class MultibitStrategy extends ImportExportStrategy {
         log.debug("loading wallet file: " + file.path)
         var KeyParameter aesKey = null
         val wallet = Wallet.loadFromFile(file)
+        log.info("MultiBit wallet with {} addresses has been loaded",
+            wallet.keychain.length
+        )
         walletKeyTool.params = wallet.networkParameters
         if (wallet.encrypted) {
             log.debug("wallet is encrypted")
@@ -33,9 +36,6 @@ class MultibitStrategy extends ImportExportStrategy {
 
         var allowFailed = false
         for (key : wallet.keychain){
-            log.trace("processing {} creation time {}",
-                key.toAddress(wallet.params), key.creationTimeSeconds
-            )
             if (key.encrypted){
                 if (aesKey != null) {
                     try {
@@ -59,16 +59,13 @@ class MultibitStrategy extends ImportExportStrategy {
                 } else {
                     val watch_only_key = new ECKey(null, key.pubKey)
                     watch_only_key.creationTimeSeconds = key.creationTimeSeconds
+                    log.info("importing {} as WATCH ONLY", watch_only_key.toAddress(wallet.params))
                     walletKeyTool.add(watch_only_key)
-                    log.info("imported {} as WATCH ONLY", watch_only_key.toAddress(wallet.params))
                 }
             } else {
                 walletKeyTool.add(key)
             }
         }
-        log.info("MultiBit wallet with {} addresses has been loaded",
-            wallet.keychain.length
-        )
     }
 
     override save(File file, String passphrase) {

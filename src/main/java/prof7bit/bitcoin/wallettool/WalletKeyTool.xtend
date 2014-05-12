@@ -51,14 +51,31 @@ class WalletKeyTool implements Iterable<KeyObject> {
     }
 
     def add(KeyObject key){
-        if (params == null){
-            params = key.params
-            log.debug("initialized params of WalletKeyTool with params of first added key")
-        }
         // FIXME: do something when params are from different network
-        // FIXME: check for duplicates
-        keys.add(key)
-        notifyChange
+        var skip = false
+        var KeyObject duplicate = null
+        for (existingKey : keys){
+            if (existingKey.addrStr.equals(key.addrStr)){
+                if (!existingKey.hasPrivKey && key.hasPrivKey){
+                    log.info("replace watch-only {} with private key", existingKey.addrStr)
+                    duplicate = existingKey
+                } else {
+                    log.info("skip existing {}", existingKey.addrStr)
+                    skip = true
+                }
+            }
+        }
+        if (duplicate != null){
+            keys.remove(duplicate)
+        }
+        if (!skip){
+            if (params == null){
+                params = key.params
+                log.debug("initialized params of WalletKeyTool with params of first added key")
+            }
+            keys.add(key)
+            notifyChange
+        }
     }
 
     def add(ECKey ecKey){
