@@ -1,21 +1,20 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
-import com.google.bitcoin.core.ECKey
-import com.google.bitcoin.params.MainNetParams
 import java.awt.Frame
 import java.text.SimpleDateFormat
+import java.util.TimeZone
 import javax.swing.JButton
 import javax.swing.JDialog
 import javax.swing.JLabel
 import javax.swing.JTextField
 import net.miginfocom.swing.MigLayout
 import prof7bit.bitcoin.wallettool.WalletKeyTool
-import java.util.TimeZone
+import prof7bit.bitcoin.wallettool.KeyObject
 
 class AddKeyDialog extends JDialog{
 
     var WalletKeyTool keyTool
-    var ECKey key = null
+    var KeyObject key = null
 
     val lbl_key = new JLabel("private key")
     val lbl_address = new JLabel("address")
@@ -83,28 +82,21 @@ class AddKeyDialog extends JDialog{
      * a valid key.
      */
     def void ProcessInput() {
-        // FIXME: make this configurable and also move it to a better place
-        if (keyTool.params == null) {
-            keyTool.params = new MainNetParams
-        }
-
         // key must be valid AND have a valid creation date
-        key = keyTool.privkeyStrToECKey(txt_key.text.trim)
-        if (key != null) {
-            txt_address.text = keyTool.ECKeyToAddressStr(key)
-            if (key != null){
-                val dfm = new SimpleDateFormat("yyyy");
-                dfm.timeZone = TimeZone.getTimeZone("GMT")
-                try {
-                    key.creationTimeSeconds = dfm.parse(txt_year.text).time / 1000
-                    btn_ok.enabled = true
-                    println("created" + key.creationTimeSeconds)
-                } catch (Exception e) {
-                    key = null
-                    btn_ok.enabled = false
-                }
+        try {
+            key = new KeyObject(txt_key.text.trim, keyTool.params)
+            txt_address.text = key.addrStr
+            val dfm = new SimpleDateFormat("yyyy");
+            dfm.timeZone = TimeZone.getTimeZone("GMT")
+            try {
+                key.creationTimeSeconds = dfm.parse(txt_year.text).time / 1000
+                btn_ok.enabled = true
+            } catch (Exception e) {
+                key = null
+                btn_ok.enabled = false
             }
-        } else {
+        } catch (Exception e){
+            key = null
             btn_ok.enabled = false
             if (txt_key.text.length > 0) {
                 txt_address.text = "<incomplete or invalid>"

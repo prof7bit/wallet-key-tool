@@ -45,14 +45,30 @@ class WalletTableModel extends AbstractTableModel {
     override getValueAt(int rowIndex, int columnIndex) {
         switch columnIndex {
             case 0: kt.getAddressStr(rowIndex)
-            case 1: kt.getPrivkeyStr(rowIndex)
+            case 1: formatPrivateKey(kt.getPrivkeyStr(rowIndex))
             case 2: kt.getCreationTimeSeconds(rowIndex).formatDate
             case 3: kt.getLabel(rowIndex)
-            case 4: {val b = kt.getBalance(rowIndex); if (b>-1) b / 100000000D else ""}
+            case 4: formatBalance(kt.getBalance(rowIndex))
         }
     }
 
     private def formatDate(long unix){
         sdf.format(new Date(unix * 1000L))
+    }
+
+    private def formatPrivateKey(String key){
+        if (key == null){
+            return "WATCH ONLY"
+        } else {
+            return key
+        }
+    }
+
+    private def formatBalance(long b){
+        if (b<0){
+            return ""
+        } else {
+            return b / 100000000D
+        }
     }
 }

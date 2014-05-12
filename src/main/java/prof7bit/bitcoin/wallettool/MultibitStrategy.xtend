@@ -8,8 +8,6 @@ import java.io.File
 import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.params.KeyParameter
 
-import static extension prof7bit.bitcoin.wallettool.Ext.*
-
 /**
  * Load and save keys in MultiBit wallet format
  */
@@ -68,13 +66,13 @@ class MultibitStrategy extends ImportExportStrategy {
     override save(File file, String passphrase) {
         val wallet = new Wallet(walletKeyTool.params)
         log.debug("")
-        for (key : walletKeyTool.keychain){
+        for (key : walletKeyTool){
             if (key.hasPrivKey) {
-                wallet.addKey(key.copy)
+                wallet.addKey(key.ecKey)
             } else {
-                wallet.addWatchedAddress(key.toAddress(walletKeyTool.params), key.creationTimeSeconds)
+                wallet.addWatchedAddress(key.ecKey.toAddress(key.params), key.creationTimeSeconds)
                 log.error("set {} as WATCH ONLY because private key is missing",
-                    key.toAddress(walletKeyTool.params)
+                    key.addrStr
                 )
             }
         }

@@ -1,25 +1,21 @@
 package prof7bit.bitcoin.wallettool
 
-import com.google.bitcoin.core.AddressFormatException
-import com.google.bitcoin.core.DumpedPrivateKey
 import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.NetworkParameters
 import java.io.File
 import java.util.ArrayList
 import java.util.Date
+import java.util.Iterator
 import java.util.List
 import org.slf4j.LoggerFactory
 
-import static extension prof7bit.bitcoin.wallettool.Ext.*
-
-class WalletKeyTool {
+class WalletKeyTool implements Iterable<KeyObject> {
     val log = LoggerFactory.getLogger(this.class)
     @Property var (String)=>String promptFunc = []
     @Property var (String)=>void alertFunc = []
     @Property var (Object)=>void notifyChangeFunc = []
     @Property var NetworkParameters params = null
-    @Property var List<ECKey> keychain = new ArrayList
-    @Property var List<KeyExtraInfo> extrainfo = new ArrayList
+    private var List<KeyObject> keys = new ArrayList
 
     var ImportExportStrategy importExportStrategy
 
@@ -49,62 +45,52 @@ class WalletKeyTool {
         importExportStrategy.save(file, pass)
     }
 
-    def add(ECKey key){
-        fixCreationDate(key)
-        for (existing : keychain){
-            if (existing.equals(key)){
-                log.info("duplicate {} not added", key.toAddress(params))
-                return
-            }
+    def add(KeyObject key){
+        if (params == null){
+            params = key.params
+            log.debug("initialized params of WalletKeyTool with params of first added key")
         }
-        keychain.add(key.copy)
-        extrainfo.add(new KeyExtraInfo)
+        // FIXME: do something when params are from different network
+        // FIXME: check for duplicates
+        keys.add(key)
         notifyChange
+    }
+
+    def add(ECKey ecKey){
+        // KeyWrapper constructor will know what to do if params==null
+        add(new KeyObject(ecKey, params))
     }
 
     def addKeyFromOtherInstance(WalletKeyTool other, int i){
         val key = other.get(i)
-        val extra = other.getExtraInfo(i)
-        keychain.add(key)
-        extrainfo.add(extra)
+        keys.add(key)
         notifyChange
     }
 
     def remove(int i){
-        keychain.remove(i)
-        extrainfo.remove(i)
+        keys.remove(i)
         notifyChange
     }
 
     def clear(){
-        keychain.clear
-        extrainfo.clear
+        keys.clear
         notifyChange
     }
 
     def getKeyCount() {
-        keychain.length
+        keys.length
     }
 
     def get(int i) {
-        keychain.get(i)
-    }
-
-    def getExtraInfo(int i){
-        extrainfo.get(i)
+        keys.get(i)
     }
 
     def getAddressStr(int i) {
-        get(i).toAddress(params).toString
+        get(i).addrStr
     }
 
     def getPrivkeyStr(int i) {
-        val key = get(i)
-        if (key.hasPrivKey) {
-            key.getPrivateKeyEncoded(params).toString
-        } else {
-            "WATCH ONLY"
-        }
+        get(i).privKeyStr
     }
 
     def getCreationTimeSeconds(int i) {
@@ -112,11 +98,11 @@ class WalletKeyTool {
     }
 
     def getBalance(int i){
-        getExtraInfo(i).balance
+        get(i).balance
     }
 
     def getLabel(int i){
-        getExtraInfo(i).label
+        get(i).label
     }
 
     def setCreationTimeSeconds(int i, long time) {
@@ -125,32 +111,16 @@ class WalletKeyTool {
     }
 
     def setBalance(int i, long balance){
-        getExtraInfo(i).balance = balance
+        get(i).balance = balance
     }
 
     def setLabel(int i, String label){
-        getExtraInfo(i).label = label
+        get(i).label = label
     }
 
     def dumpToConsole() {
         for (i : 0 ..< keyCount) {
             println(getAddressStr(i) + " " + getPrivkeyStr(i))
-        }
-    }
-
-    def ECKey privkeyStrToECKey(String privkey){
-        try {
-            new DumpedPrivateKey(params, privkey).key
-        } catch (AddressFormatException e) {
-            null
-        }
-    }
-
-    def String ECKeyToAddressStr(ECKey key){
-        if (key == null){
-            null
-        } else {
-            key.toAddress(params).toString
         }
     }
 
@@ -177,21 +147,29 @@ class WalletKeyTool {
         }
     }
 
-    /**
-     * we don't want keys with missing creation date. Especially MultiBit has a bug
-     * where it starts behaving strange if creation date is not at least one second
-     * later than that of the genesis block, it will either behave strange when
-     * opening such a wallet and/or refuse to reset the block chain. Therefore we
-     * ensure that no key has a creation time earlier than the time stamp of the
-     * genesis block of its network plus 1 second.
-     */
-    def fixCreationDate(ECKey key){
-        if (key.creationTimeSeconds <= params.genesisBlock.timeSeconds){
-            log.debug("{} creation date {}, adjusting to time of genesis block",
-                key.toAddress(params),
-                key.creationTimeSeconds
-            )
-            key.creationTimeSeconds = params.genesisBlock.timeSeconds + 1
-        }
+    override iterator() {
+        return new WalletKeyToolIterator(this)
+    }
+}
+
+class WalletKeyToolIterator implements Iterator<KeyObject> {
+    var index = 0
+    var WalletKeyTool wkt
+
+    new(WalletKeyTool wkt){
+        this.wkt = wkt
+    }
+
+    override hasNext() {
+        index < wkt.keyCount
+    }
+
+    override next() {
+        index = index + 1
+        return wkt.get(index - 1)
+    }
+
+    override remove() {
+        wkt.remove(index)
     }
 }
