@@ -4,14 +4,27 @@ import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.Wallet
 import com.google.bitcoin.crypto.KeyCrypterException
 import com.google.bitcoin.crypto.KeyCrypterScrypt
+import com.google.common.base.Charsets
+import com.google.common.base.Joiner
+import com.google.common.io.Files
 import java.io.File
+import java.io.IOException
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.util.ArrayList
+import java.util.Hashtable
+import java.util.List
 import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.params.KeyParameter
+import prof7bit.bitcoin.wallettool.ImportExportStrategy
+import prof7bit.bitcoin.wallettool.WalletKeyTool
+
+import static extension prof7bit.bitcoin.wallettool.Ext.*
 
 /**
  * Load and save keys in MultiBit wallet format
  */
-class MultibitStrategy extends prof7bit.bitcoin.wallettool.ImportExportStrategy {
+class MultibitStrategy extends ImportExportStrategy {
     val log = LoggerFactory.getLogger(this.class)
 
     override load(File file, String pass) {
@@ -66,6 +79,10 @@ class MultibitStrategy extends prof7bit.bitcoin.wallettool.ImportExportStrategy 
                 getWalletKeyTool.add(key)
             }
         }
+
+        // read the labels from the .info file
+        val info = new MultibitInfo(file, walletKeyTool)
+        info.readLabels
     }
 
     override save(File file, String passphrase) {
@@ -88,6 +105,11 @@ class MultibitStrategy extends prof7bit.bitcoin.wallettool.ImportExportStrategy 
             wallet.setDescription("created by wallet-key-tool")
             wallet.setLastBlockSeenHeight(0)
             wallet.saveToFile(file)
+
+            // write the .info file
+            val info = new MultibitInfo(file, walletKeyTool)
+            info.writeLabels
+
             var msg = String.format("A new MultiBit wallet with %d addresses has been written to %s",
                 wallet.keychain.length + wallet.watchedScripts.length,
                 file.path
@@ -99,9 +121,70 @@ class MultibitStrategy extends prof7bit.bitcoin.wallettool.ImportExportStrategy 
                     wallet.watchedScripts.length
                 ))
             }
-            getWalletKeyTool.alert(msg)
+            walletKeyTool.alert(msg)
         } else {
-            getWalletKeyTool.alert("there were no addresses or keys, wallet has not been exported")
+            walletKeyTool.alert("there were no addresses or keys, wallet has not been exported")
+        }
+    }
+}
+
+/**
+ * This represents the .info file that contains the labels
+ */
+class MultibitInfo {
+    val log = LoggerFactory.getLogger(this.class)
+    val list = new Hashtable<String, String>
+
+    var File infofile
+    var WalletKeyTool walletKeyTool
+
+    new(File file, WalletKeyTool wkt){
+        infofile = new File(file.parent, Files.getNameWithoutExtension(file.path) + ".info")
+        walletKeyTool = wkt
+    }
+
+    def readLabels() {
+        readInfoFile()
+        for (key : walletKeyTool){
+            val label = list.get(key.addrStr)
+            if (label != null){
+                key.label = label
+            }
+        }
+    }
+
+    def writeLabels(){
+        var List<String> lines = new ArrayList
+        val LS = System.getProperty("line.separator")
+        lines.add("multiBit.info,1")
+        lines.add("walletVersion,3")
+        for (key : walletKeyTool){
+            lines.add(String.format("receive,%s,%s",
+                key.addrStr, URLEncoder.encode(key.label, Charsets.UTF_8.name)
+            ))
+        }
+        try {
+            Files.write(Joiner.on(LS).join(lines), infofile, Charsets.UTF_8)
+        } catch (IOException e) {
+            log.stacktrace(e)
+        }
+    }
+
+    private def readInfoFile(){
+        try {
+            val lines = Files.readLines(infofile, Charsets.UTF_8)
+            for (line : lines) {
+                val words = line.split(",")
+                if (words.length == 3){
+                    if (words.get(0) == "receive"){
+                        list.put(words.get(1), URLDecoder.decode(words.get(2), Charsets.UTF_8.name))
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.info("could not read info file {}", infofile)
+        } catch (Exception e) {
+            log.stacktrace(e)
         }
     }
 }
