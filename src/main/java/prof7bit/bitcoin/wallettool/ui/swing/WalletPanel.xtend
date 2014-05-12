@@ -155,27 +155,38 @@ class WalletPanel extends JPanel{
         if (keyTool.keyCount == 0){
             alert("Wallet is empty, nothing to save")
         } else {
-            val fd = new FileDialogEx(parentFrame, "select wallet file");
-            fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
-            if (fd.showSave) {
-                // FIXME: don't allow overwriting of old wallet
-                var file = fd.selectedFile
-                if (!file.path.endsWith("." + filterExt)){
-                    file = new File(file.path + "." + filterExt)
-                }
-                val pass = prompt("please enter a pass phrase to encrypt the wallet")
-                if (pass != null && pass.length > 0){
-                    val pass2 = prompt("please repeat the pass phrase")
-                    if (pass2 != null && pass2.length > 0 && pass2.equals(pass)) {
-                        keyTool.importExportStrategy = strat
-                        keyTool.save(file, pass)
-                    } else {
-                        alert("pass phrase not repeated correctly")
-                        log.info("saving canceled because of pass phrase mismatch")
+            var File file
+            var exitLoop = false
+            while (!exitLoop) {
+                val fd = new FileDialogEx(parentFrame, "select wallet file");
+                fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
+                if (fd.showSave) {
+                    // FIXME: don't allow overwriting of old wallet
+                    file = fd.selectedFile
+                    if (!file.path.endsWith("." + filterExt)){
+                        file = new File(file.path + "." + filterExt)
                     }
-                }else{
-                    log.info("saving canceled")
+                    if (file.exists){
+                        alert("can not overwrite existing files. Please select a different file name")
+                    }else{
+                        exitLoop = true
+                    }
+                } else {
+                    // file dialog exited with cancel
+                    exitLoop = true
+                    file = null
                 }
+            }
+            if (file != null) {
+                val pass = askPassTwice
+                if (pass != null){
+                    keyTool.importExportStrategy = strat
+                    keyTool.save(file, pass)
+                }else{
+                    log.debug("password dialog canceled")
+                }
+            } else {
+                log.debug("file dialog canceled")
             }
         }
     }
@@ -202,5 +213,28 @@ class WalletPanel extends JPanel{
         JOptionPane.showMessageDialog(this, msg)
     }
 
+    /**
+     * prompt for password and confirmation.
+     * @return String password or null if dialog was canceled
+     */
+    def askPassTwice(){
+        while(true){
+            val pass = prompt("please enter a pass phrase to encrypt the wallet")
+            if (pass == null){
+                return null
+            }else{
+                val pass2 = prompt("please repeat the pass phrase")
+                if (pass2 == null){
+                    return null
+                } else {
+                    if (pass2.equals(pass)){
+                        return pass
+                    } else {
+                        alert("pass phrase not repeated correctly, please try again")
+                    }
+                }
+            }
+        }
+    }
 }
 
