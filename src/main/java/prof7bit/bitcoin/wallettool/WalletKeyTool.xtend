@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 class WalletKeyTool implements Iterable<KeyObject> {
     val log = LoggerFactory.getLogger(this.class)
     @Property var (String)=>String promptFunc = []
+    @Property var (String)=>boolean YesNoFunc = []
     @Property var (String)=>void alertFunc = []
     @Property var (Object)=>void notifyChangeFunc = []
     @Property var NetworkParameters params = null
@@ -25,6 +26,10 @@ class WalletKeyTool implements Iterable<KeyObject> {
 
     def alert(String msg){
         alertFunc.apply(msg)
+    }
+
+    def confirm(String msg){
+        yesNoFunc.apply(msg)
     }
 
     def notifyChange(){
@@ -74,6 +79,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
 
     def clear(){
         keys.clear
+        params = null
         notifyChange
     }
 

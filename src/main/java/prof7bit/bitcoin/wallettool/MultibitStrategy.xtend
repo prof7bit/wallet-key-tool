@@ -31,6 +31,7 @@ class MultibitStrategy extends ImportExportStrategy {
             }
         }
 
+        var allowFailed = false
         for (key : wallet.keychain){
             log.trace("processing {} creation time {}",
                 key.toAddress(wallet.params), key.creationTimeSeconds
@@ -41,12 +42,19 @@ class MultibitStrategy extends ImportExportStrategy {
                         walletKeyTool.add(key.decrypt(wallet.keyCrypter, aesKey))
                     } catch (KeyCrypterException e) {
                         val watch_only_key = new ECKey(null, key.pubKey)
-                        watch_only_key.creationTimeSeconds = key.creationTimeSeconds
-                        walletKeyTool.add(watch_only_key)
                         log.error("DECRYPT ERROR: {} {}",
                             key.toAddress(walletKeyTool.params).toString,
                             key.encryptedPrivateKey.toString
                         )
+                        if (!allowFailed){
+                            if (walletKeyTool.confirm("decryption error, continue?")){
+                                allowFailed = true
+                            } else {
+                                return
+                            }
+                        }
+                        watch_only_key.creationTimeSeconds = key.creationTimeSeconds
+                        walletKeyTool.add(watch_only_key)
                     }
                 } else {
                     val watch_only_key = new ECKey(null, key.pubKey)

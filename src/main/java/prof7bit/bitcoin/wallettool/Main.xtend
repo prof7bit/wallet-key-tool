@@ -26,6 +26,11 @@ static class Main {
         }
     ]
 
+    static val consoleConfirmFunc = [
+        val answer = consolePromptFunc.apply(it + " [y/n]")
+        return (answer == "y" || answer == "")
+    ]
+
     static val consoleAlertFunc = [
         println(it)
         return
@@ -50,6 +55,7 @@ static class Main {
         new WalletKeyTool => [
             promptFunc = consolePromptFunc
             alertFunc = consoleAlertFunc
+            yesNoFunc = consoleConfirmFunc
             importExportStrategy = MultibitStrategy
             load(new File(filename), null)
             dumpToConsole

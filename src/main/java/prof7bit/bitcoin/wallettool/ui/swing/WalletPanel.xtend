@@ -28,6 +28,7 @@ class WalletPanel extends JPanel{
     @Property var WalletKeyTool keyTool = new WalletKeyTool => [
         promptFunc = [prompt(it)]
         alertFunc = [alert(it)]
+        yesNoFunc = [confirm(it)]
     ]
     @Property var WalletKeyTool otherKeyTool = null
     @Property var String otherName = ""
@@ -211,6 +212,11 @@ class WalletPanel extends JPanel{
 
     def alert(String msg) {
         JOptionPane.showMessageDialog(this, msg)
+    }
+
+    def confirm(String msg){
+        val answer = JOptionPane.showConfirmDialog(this, msg, null, JOptionPane.YES_NO_OPTION)
+        return answer == JOptionPane.YES_OPTION
     }
 
     /**
