@@ -51,7 +51,6 @@ class WalletKeyTool implements Iterable<KeyObject> {
     }
 
     def add(KeyObject key){
-        // FIXME: do something when params are from different network
         var skip = false
         var KeyObject duplicate = null
         for (existingKey : keys){
@@ -72,9 +71,16 @@ class WalletKeyTool implements Iterable<KeyObject> {
             if (params == null){
                 params = key.params
                 log.debug("initialized params of WalletKeyTool with params of first added key")
+            } else {
+                if (params.equals(key.params)){
+                    keys.add(key)
+                    notifyChange
+                }else{
+                    log.error("{} is from a different network. Cannot mix them in the same wallet",
+                        key.addrStr
+                    )
+                }
             }
-            keys.add(key)
-            notifyChange
         }
     }
 
