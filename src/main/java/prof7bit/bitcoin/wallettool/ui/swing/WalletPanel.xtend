@@ -47,6 +47,10 @@ class WalletPanel extends JPanel{
 
     val JTable table = new JTable => [
         model = new WalletTableModel(keyTool)
+        autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
+        addComponentListener(new ResizeListener [
+            columnAdjuster.adjustColumns
+        ])
         addMouseListener(new MouseDownListener[evt|
             if (evt.popupTrigger) {
                 val row = rowAtPoint(evt.point)
@@ -126,6 +130,12 @@ class WalletPanel extends JPanel{
                 ]
             }
         ])
+    ]
+
+    val columnAdjuster = new TableColumnAdjuster(table) => [
+        onlyAdjustLarger = false
+        dynamicAdjustment = true
+        adjustColumns
     ]
 
     new(Frame parentFrame) {
