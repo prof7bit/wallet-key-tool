@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool.ui.swing
+package prof7bit.bitcoin.wallettool.ui.swing.listeners
 
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener

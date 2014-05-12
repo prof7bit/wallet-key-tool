@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool
+package prof7bit.bitcoin.wallettool.fileformats
 
 import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.Wallet
@@ -11,7 +11,7 @@ import org.spongycastle.crypto.params.KeyParameter
 /**
  * Load and save keys in MultiBit wallet format
  */
-class MultibitStrategy extends ImportExportStrategy {
+class MultibitStrategy extends prof7bit.bitcoin.wallettool.ImportExportStrategy {
     val log = LoggerFactory.getLogger(this.class)
 
     override load(File file, String pass) {
@@ -21,11 +21,11 @@ class MultibitStrategy extends ImportExportStrategy {
         log.info("MultiBit wallet with {} addresses has been loaded",
             wallet.keychain.length
         )
-        walletKeyTool.params = wallet.networkParameters
+        getWalletKeyTool.params = wallet.networkParameters
         if (wallet.encrypted) {
             log.debug("wallet is encrypted")
             if (pass == null){
-                val pass_answered = walletKeyTool.prompt("Wallet is encrypted. Enter pass phrase")
+                val pass_answered = getWalletKeyTool.prompt("Wallet is encrypted. Enter pass phrase")
                 if (pass_answered != null && pass_answered.length > 0) {
                     aesKey = wallet.keyCrypter.deriveKey(pass_answered)
                 }
@@ -39,45 +39,45 @@ class MultibitStrategy extends ImportExportStrategy {
             if (key.encrypted){
                 if (aesKey != null) {
                     try {
-                        walletKeyTool.add(key.decrypt(wallet.keyCrypter, aesKey))
+                        getWalletKeyTool.add(key.decrypt(wallet.keyCrypter, aesKey))
                     } catch (KeyCrypterException e) {
                         val watch_only_key = new ECKey(null, key.pubKey)
                         log.error("DECRYPT ERROR: {} {}",
-                            key.toAddress(walletKeyTool.params).toString,
+                            key.toAddress(getWalletKeyTool.getParams).toString,
                             key.encryptedPrivateKey.toString
                         )
                         if (!allowFailed){
-                            if (walletKeyTool.confirm("decryption error, continue?")){
+                            if (getWalletKeyTool.confirm("decryption error, continue?")){
                                 allowFailed = true
                             } else {
                                 return
                             }
                         }
                         watch_only_key.creationTimeSeconds = key.creationTimeSeconds
-                        walletKeyTool.add(watch_only_key)
+                        getWalletKeyTool.add(watch_only_key)
                     }
                 } else {
                     val watch_only_key = new ECKey(null, key.pubKey)
                     watch_only_key.creationTimeSeconds = key.creationTimeSeconds
                     log.info("importing {} as WATCH ONLY", watch_only_key.toAddress(wallet.params))
-                    walletKeyTool.add(watch_only_key)
+                    getWalletKeyTool.add(watch_only_key)
                 }
             } else {
-                walletKeyTool.add(key)
+                getWalletKeyTool.add(key)
             }
         }
     }
 
     override save(File file, String passphrase) {
-        val wallet = new Wallet(walletKeyTool.params)
+        val wallet = new Wallet(getWalletKeyTool.getParams)
         log.debug("")
-        for (key : walletKeyTool){
+        for (key : getWalletKeyTool){
             if (key.hasPrivKey) {
-                wallet.addKey(key.ecKey)
+                wallet.addKey(key.getEcKey)
             } else {
-                wallet.addWatchedAddress(key.ecKey.toAddress(key.params), key.creationTimeSeconds)
+                wallet.addWatchedAddress(key.getEcKey.toAddress(key.getParams), key.getCreationTimeSeconds)
                 log.error("set {} as WATCH ONLY because private key is missing",
-                    key.addrStr
+                    key.getAddrStr
                 )
             }
         }
@@ -99,9 +99,9 @@ class MultibitStrategy extends ImportExportStrategy {
                     wallet.watchedScripts.length
                 ))
             }
-            walletKeyTool.alert(msg)
+            getWalletKeyTool.alert(msg)
         } else {
-            walletKeyTool.alert("there were no addresses or keys, wallet has not been exported")
+            getWalletKeyTool.alert("there were no addresses or keys, wallet has not been exported")
         }
     }
 }

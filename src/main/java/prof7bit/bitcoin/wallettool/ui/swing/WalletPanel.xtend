@@ -16,10 +16,13 @@ import javax.swing.filechooser.FileNameExtensionFilter
 import net.miginfocom.swing.MigLayout
 import org.slf4j.LoggerFactory
 import prof7bit.bitcoin.wallettool.ImportExportStrategy
-import prof7bit.bitcoin.wallettool.MultibitStrategy
 import prof7bit.bitcoin.wallettool.WalletKeyTool
+import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
+import prof7bit.bitcoin.wallettool.ui.swing.listeners.MouseDownListener
+import prof7bit.bitcoin.wallettool.ui.swing.listeners.ResizeListener
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
+import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
 
 class WalletPanel extends JPanel{
     val log = LoggerFactory.getLogger(this.class)

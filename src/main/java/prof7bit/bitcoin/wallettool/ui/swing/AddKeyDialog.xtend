@@ -8,8 +8,9 @@ import javax.swing.JDialog
 import javax.swing.JLabel
 import javax.swing.JTextField
 import net.miginfocom.swing.MigLayout
-import prof7bit.bitcoin.wallettool.WalletKeyTool
 import prof7bit.bitcoin.wallettool.KeyObject
+import prof7bit.bitcoin.wallettool.WalletKeyTool
+import prof7bit.bitcoin.wallettool.ui.swing.listeners.DocumentChangedListener
 
 class AddKeyDialog extends JDialog{
 

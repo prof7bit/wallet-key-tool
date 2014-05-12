@@ -8,6 +8,7 @@ import org.apache.commons.cli.CommandLine
 import org.apache.commons.cli.GnuParser
 import org.apache.commons.cli.Options
 import org.slf4j.LoggerFactory
+import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
 import prof7bit.bitcoin.wallettool.ui.swing.SwingMain
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*

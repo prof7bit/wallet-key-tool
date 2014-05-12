@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool.ui.swing;
+package prof7bit.bitcoin.wallettool.ui.swing.misc;
 
 import java.awt.Component;
 import java.awt.event.ActionEvent;
