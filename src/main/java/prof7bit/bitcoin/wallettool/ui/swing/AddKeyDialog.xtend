@@ -84,19 +84,17 @@ class AddKeyDialog extends JDialog{
      */
     def void ProcessInput() {
         // key must be valid AND have a valid creation date
+        val dfm = new SimpleDateFormat("yyyy");
+        dfm.timeZone = TimeZone.getTimeZone("GMT")
         try {
-            key = new KeyObject(txt_key.text.trim, keyTool.params)
+            key = new KeyObject(
+                txt_key.text.trim,
+                keyTool.params,
+                dfm.parse(txt_year.text).time / 1000
+            )
             txt_address.text = key.addrStr
-            val dfm = new SimpleDateFormat("yyyy");
-            dfm.timeZone = TimeZone.getTimeZone("GMT")
-            try {
-                key.creationTimeSeconds = dfm.parse(txt_year.text).time / 1000
-                btn_ok.enabled = true
-            } catch (Exception e) {
-                key = null
-                btn_ok.enabled = false
-            }
-        } catch (Exception e){
+            btn_ok.enabled = true
+        } catch (Exception e) {
             key = null
             btn_ok.enabled = false
             if (txt_key.text.length > 0) {

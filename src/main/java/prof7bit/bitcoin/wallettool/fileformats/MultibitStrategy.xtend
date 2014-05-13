@@ -88,7 +88,6 @@ class MultibitStrategy extends ImportExportStrategy {
 
     override save(File file, String passphrase) throws Exception {
         val wallet = new Wallet(getWalletKeyTool.getParams)
-        log.debug("")
         for (key : getWalletKeyTool){
             if (key.hasPrivKey) {
                 wallet.addKey(key.getEcKey)

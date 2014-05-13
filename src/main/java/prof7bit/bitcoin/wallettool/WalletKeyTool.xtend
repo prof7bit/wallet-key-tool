@@ -2,12 +2,15 @@ package prof7bit.bitcoin.wallettool
 
 import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.NetworkParameters
+import com.google.common.io.Files
 import java.io.File
 import java.util.ArrayList
 import java.util.Date
 import java.util.Iterator
 import java.util.List
 import org.slf4j.LoggerFactory
+import prof7bit.bitcoin.wallettool.fileformats.MultibitBackupStrategy
+import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
 
 class WalletKeyTool implements Iterable<KeyObject> {
     val log = LoggerFactory.getLogger(this.class)
@@ -36,17 +39,19 @@ class WalletKeyTool implements Iterable<KeyObject> {
         notifyChangeFunc.apply(null)
     }
 
-    def void setImportExportStrategy(Class<? extends ImportExportStrategy> strat)throws InstantiationException, IllegalAccessException {
+    def void setImportExportStrategy(Class<? extends ImportExportStrategy> strat) throws InstantiationException, IllegalAccessException {
         importExportStrategy = strat.newInstance
         importExportStrategy.walletKeyTool = this
     }
 
     def load(File file, String pass) throws Exception {
+        setImportExportStrategy(getStrategyFromFileName(file))
         importExportStrategy.load(file, pass)
         notifyChange
     }
 
     def save(File file, String pass) throws Exception {
+        setImportExportStrategy(getStrategyFromFileName(file))
         importExportStrategy.save(file, pass)
     }
 
@@ -173,6 +178,27 @@ class WalletKeyTool implements Iterable<KeyObject> {
         if (b > -1) {
             setBalance(i, b)
             notifyChange
+        }
+    }
+
+    def Class<? extends ImportExportStrategy> getStrategyFromFileName(File file){
+        val ext = Files.getFileExtension(file.path)
+        switch (ext) {
+            case "wallet" : MultibitStrategy
+            case "key"    : MultibitBackupStrategy
+            default : throw new RuntimeException(String.format(
+                "*.%s is not a recognized wallet file format",
+                ext
+            ))
+        }
+    }
+
+    def hasStrategyForFileType(File file){
+        try {
+            getStrategyFromFileName(file)
+            return true
+        } catch (Exception e) {
+            return false
         }
     }
 

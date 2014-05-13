@@ -1,10 +1,12 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
+import com.google.common.io.Files
 import java.awt.Frame
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.io.File
 import javax.swing.JButton
+import javax.swing.JFileChooser
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
@@ -15,14 +17,12 @@ import javax.swing.ScrollPaneConstants
 import javax.swing.filechooser.FileNameExtensionFilter
 import net.miginfocom.swing.MigLayout
 import org.slf4j.LoggerFactory
-import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.WalletKeyTool
-import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.MouseDownListener
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.ResizeListener
+import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
-import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
 
 class WalletPanel extends JPanel{
     val log = LoggerFactory.getLogger(this.class)
@@ -39,7 +39,7 @@ class WalletPanel extends JPanel{
     val btn_load = new JButton("load...") => [
         addActionListener [
             try {
-                loadWallet("MultiBit wallet file", "wallet", MultibitStrategy)
+                loadWallet()
             } catch (Exception e) {
                 log.stacktrace(e)
             }
@@ -49,7 +49,7 @@ class WalletPanel extends JPanel{
     val btn_save = new JButton("save as...") => [
         addActionListener [
             try {
-                saveWallet("MultiBit wallet file", "wallet", MultibitStrategy)
+                saveWallet()
             } catch (Exception e) {
                 log.stacktrace(e)
             }
@@ -173,25 +173,34 @@ class WalletPanel extends JPanel{
         clipboard.setContents(selection, selection);
     }
 
-    def saveWallet(String filterDesc, String filterExt, Class<? extends ImportExportStrategy> strat) {
+    def saveWallet() {
         if (keyTool.keyCount == 0){
             alert("Wallet is empty, nothing to save")
         } else {
             var File file
+            var String filterExt
             var exitLoop = false
             while (!exitLoop) {
                 val fd = new FileDialogEx(parentFrame, "select wallet file");
-                fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
+                fd.setFileFilters
                 if (fd.showSave) {
                     // FIXME: don't allow overwriting of old wallet
                     file = fd.selectedFile
-                    if (!file.path.endsWith("." + filterExt)){
-                        file = new File(file.path + "." + filterExt)
+                    if (fd.fileFilter.class.equals(FileNameExtensionFilter)) {
+                        filterExt = (fd.fileFilter as FileNameExtensionFilter).extensions.get(0)
+                        if (!file.path.endsWith("." + filterExt)){
+                            file = new File(file.path + "." + filterExt)
+                        }
                     }
                     if (file.exists){
                         alert("can not overwrite existing files. Please select a different file name")
                     }else{
-                        exitLoop = true
+                        if (!keyTool.hasStrategyForFileType(file)){
+                            val ext = Files.getFileExtension(file.path)
+                            alert(String.format("unknown file type: *.%s", ext))
+                        }else{
+                            exitLoop = true
+                        }
                     }
                 } else {
                     // file dialog exited with cancel
@@ -199,12 +208,13 @@ class WalletPanel extends JPanel{
                     file = null
                 }
             }
+
             if (file != null) {
+                keyTool.getStrategyFromFileName(file)
                 val pass = askPassTwice
                 if (pass != null){
                     try {
-                        keyTool.importExportStrategy = strat
-                        keyTool.save(file, pass)
+                       keyTool.save(file, pass)
                     } catch (Exception e) {
                         log.stacktrace(e)
                     }
@@ -217,16 +227,15 @@ class WalletPanel extends JPanel{
         }
     }
 
-    def loadWallet(String filterDesc, String filterExt, Class<? extends ImportExportStrategy> strat) {
+    def loadWallet() {
         val fd = new FileDialogEx(parentFrame, "select wallet file")
-        fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
+        fd.setFileFilters
         if (fd.showOpen) {
             try {
-                keyTool.importExportStrategy = strat
                 keyTool.load(fd.selectedFile, null)
             } catch (Exception e) {
                 log.stacktrace(e)
-                alert(e.toString)
+                alert(e.message)
             }
         }
     }
@@ -266,6 +275,11 @@ class WalletPanel extends JPanel{
                 }
             }
         }
+    }
+
+    def setFileFilters(JFileChooser fd){
+        fd.addChoosableFileFilter(new FileNameExtensionFilter("Multibit backup", "key"))
+        fd.setFileFilter(new FileNameExtensionFilter("Multibit wallet", "wallet"))
     }
 }
 
