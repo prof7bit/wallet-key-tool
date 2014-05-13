@@ -12,6 +12,7 @@ import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
 import prof7bit.bitcoin.wallettool.ui.swing.SwingMain
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
+import org.apache.commons.cli.ParseException
 
 static class Main {
     static val log = LoggerFactory.getLogger(Main)
@@ -51,19 +52,24 @@ static class Main {
         }
     }
 
-    static def consoleStart(CommandLine opt){
+    @SuppressWarnings("all")
+    static def consoleStart(CommandLine opt) {
         val filename = opt.args.get(0)
         new WalletKeyTool => [
             promptFunc = consolePromptFunc
             alertFunc = consoleAlertFunc
             yesNoFunc = consoleConfirmFunc
-            importExportStrategy = MultibitStrategy
-            load(new File(filename), null)
-            dumpToConsole
+            try {
+                importExportStrategy = MultibitStrategy
+                load(new File(filename), null)
+                dumpToConsole
+            } catch (Exception e) {
+                log.stacktrace(e)
+            }
         ]
     }
 
-    static def CommandLine parseOpt(String[] args) {
+    static def CommandLine parseOpt(String[] args) throws ParseException {
         val opt_defs = new Options
         val optparser = new GnuParser
         optparser.parse(opt_defs, args)

@@ -38,13 +38,21 @@ class WalletPanel extends JPanel{
 
     val btn_load = new JButton("load...") => [
         addActionListener [
-            loadWallet("MultiBit wallet file", "wallet", MultibitStrategy)
+            try {
+                loadWallet("MultiBit wallet file", "wallet", MultibitStrategy)
+            } catch (Exception e) {
+                log.stacktrace(e)
+            }
         ]
     ]
 
     val btn_save = new JButton("save as...") => [
         addActionListener [
-            saveWallet("MultiBit wallet file", "wallet", MultibitStrategy)
+            try {
+                saveWallet("MultiBit wallet file", "wallet", MultibitStrategy)
+            } catch (Exception e) {
+                log.stacktrace(e)
+            }
         ]
     ]
 
@@ -194,8 +202,12 @@ class WalletPanel extends JPanel{
             if (file != null) {
                 val pass = askPassTwice
                 if (pass != null){
-                    keyTool.importExportStrategy = strat
-                    keyTool.save(file, pass)
+                    try {
+                        keyTool.importExportStrategy = strat
+                        keyTool.save(file, pass)
+                    } catch (Exception e) {
+                        log.stacktrace(e)
+                    }
                 }else{
                     log.debug("password dialog canceled")
                 }
@@ -209,8 +221,8 @@ class WalletPanel extends JPanel{
         val fd = new FileDialogEx(parentFrame, "select wallet file")
         fd.setFileFilter(new FileNameExtensionFilter(filterDesc, filterExt))
         if (fd.showOpen) {
-            keyTool.importExportStrategy = strat
             try {
+                keyTool.importExportStrategy = strat
                 keyTool.load(fd.selectedFile, null)
             } catch (Exception e) {
                 log.stacktrace(e)

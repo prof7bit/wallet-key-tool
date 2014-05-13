@@ -36,17 +36,17 @@ class WalletKeyTool implements Iterable<KeyObject> {
         notifyChangeFunc.apply(null)
     }
 
-    def void setImportExportStrategy(Class<? extends ImportExportStrategy> strat){
+    def void setImportExportStrategy(Class<? extends ImportExportStrategy> strat)throws InstantiationException, IllegalAccessException {
         importExportStrategy = strat.newInstance
         importExportStrategy.walletKeyTool = this
     }
 
-    def load(File file, String pass){
+    def load(File file, String pass) throws Exception {
         importExportStrategy.load(file, pass)
         notifyChange
     }
 
-    def save(File file, String pass){
+    def save(File file, String pass) throws Exception {
         importExportStrategy.save(file, pass)
     }
 

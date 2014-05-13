@@ -20,6 +20,7 @@ import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.WalletKeyTool
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
+import java.io.UnsupportedEncodingException
 
 /**
  * Load and save keys in MultiBit wallet format
@@ -27,7 +28,7 @@ import static extension prof7bit.bitcoin.wallettool.Ext.*
 class MultibitStrategy extends ImportExportStrategy {
     val log = LoggerFactory.getLogger(this.class)
 
-    override load(File file, String pass) {
+    override load(File file, String pass) throws Exception {
         log.debug("loading wallet file: " + file.path)
         var KeyParameter aesKey = null
         val wallet = Wallet.loadFromFile(file)
@@ -85,7 +86,7 @@ class MultibitStrategy extends ImportExportStrategy {
         info.readLabels
     }
 
-    override save(File file, String passphrase) {
+    override save(File file, String passphrase) throws Exception {
         val wallet = new Wallet(getWalletKeyTool.getParams)
         log.debug("")
         for (key : getWalletKeyTool){
@@ -159,9 +160,13 @@ class MultibitInfo {
         lines.add("multiBit.info,1")
         lines.add("walletVersion,3")
         for (key : walletKeyTool){
-            lines.add(String.format("receive,%s,%s",
-                key.addrStr, URLEncoder.encode(key.label, Charsets.UTF_8.name)
-            ))
+            try {
+                lines.add(String.format("receive,%s,%s",
+                    key.addrStr, URLEncoder.encode(key.label, Charsets.UTF_8.name)
+                ))
+            } catch (UnsupportedEncodingException exc) {
+                lines.add(String.format("receive,%s,unknown", key.addrStr))
+            }
         }
         try {
             Files.write(Joiner.on(LS).join(lines), infofile, Charsets.UTF_8)
