@@ -1,6 +1,7 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
 import com.google.common.io.Files
+import java.awt.Dimension
 import java.awt.Frame
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -149,6 +150,12 @@ class WalletPanel extends JPanel{
         adjustColumns
     ]
 
+    val fc = new JFileChooser => [
+        addChoosableFileFilter(new FileNameExtensionFilter("Multibit backup", "key"))
+        setFileFilter(new FileNameExtensionFilter("Multibit wallet", "wallet"))
+        preferredSize = new Dimension(600, 500)
+    ]
+
     new(Frame parentFrame) {
         super()
         this.parentFrame = parentFrame
@@ -181,13 +188,13 @@ class WalletPanel extends JPanel{
             var String filterExt
             var exitLoop = false
             while (!exitLoop) {
-                val fd = new FileDialogEx(parentFrame, "select wallet file");
-                fd.setFileFilters
-                if (fd.showSave) {
+                //val fd = new FileDialogEx(parentFrame, "select wallet file");
+                //fd.setFileFilters
+                if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
                     // FIXME: don't allow overwriting of old wallet
-                    file = fd.selectedFile
-                    if (fd.fileFilter.class.equals(FileNameExtensionFilter)) {
-                        filterExt = (fd.fileFilter as FileNameExtensionFilter).extensions.get(0)
+                    file = fc.selectedFile
+                    if (fc.fileFilter.class.equals(FileNameExtensionFilter)) {
+                        filterExt = (fc.fileFilter as FileNameExtensionFilter).extensions.get(0)
                         if (!file.path.endsWith("." + filterExt)){
                             file = new File(file.path + "." + filterExt)
                         }
@@ -228,11 +235,11 @@ class WalletPanel extends JPanel{
     }
 
     def loadWallet() {
-        val fd = new FileDialogEx(parentFrame, "select wallet file")
-        fd.setFileFilters
-        if (fd.showOpen) {
+        //val fd = new FileDialogEx(parentFrame, "select wallet file")
+        //fd.setFileFilters
+        if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             try {
-                keyTool.load(fd.selectedFile, null)
+                keyTool.load(fc.selectedFile, null)
             } catch (Exception e) {
                 log.stacktrace(e)
                 alert(e.message)
