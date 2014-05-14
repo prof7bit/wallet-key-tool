@@ -64,6 +64,7 @@ class MultibitBackupStrategy  extends ImportExportStrategy {
         val crypter = new MultibitBackupCrypter
         val encrypted = crypter.encrypt(lines, pass)
         Files.write(encrypted, file, Charsets.UTF_8)
+        log.info("encrypted Multibit backup file written to {}", file.path)
     }
 
     private def readEncrypted(File file, String password) throws Exception {
