@@ -24,6 +24,7 @@ dependencies {
     compile 'org.slf4j:slf4j-simple:1.7.+'
     compile 'com.miglayout:miglayout:3.7.+'
     compile 'commons-cli:commons-cli:1.+'
+    compile 'com.googlecode.json-simple:json-simple:1.+'
 }
 
 jar {
