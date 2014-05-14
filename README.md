@@ -1,10 +1,8 @@
 # wallet-key-tool
 
-Dump addresses and private keys from a multibit wallet
-(there will be more wallet file formats supported
-soonish[TM]) to the console or use a GUI to add/remove
-keys from the wallet, move them from one wallet to
-another wallet, etc.
+Comfortable GUI application to edit the contents of various
+Bitcoin wallet files, add or remove keys, read one format and
+export to another, move keys between different wallets, etc.
 
 ## how to build from source
 
