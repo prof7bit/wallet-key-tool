@@ -108,18 +108,6 @@ class MultibitBackupCrypter {
     static val KEY_LENGTH = 256
     static val IV_LENGTH = 128
 
-    def createCipher(String password, byte[] salt, Boolean forEncryption){
-        val generator = new OpenSSLPBEParametersGenerator
-        val passbytes = PBEParametersGenerator.PKCS5PasswordToBytes(password.toCharArray)
-
-        generator.init(passbytes, salt, NUMBER_OF_ITERATIONS)
-        val ivAndKey =  generator.generateDerivedParameters(KEY_LENGTH, IV_LENGTH);
-
-        val cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESFastEngine))
-        cipher.init(forEncryption, ivAndKey)
-        return cipher
-    }
-
     def decrypt(String cipherText, String password) throws InvalidCipherTextException {
         val textAsBytes = Base64.decode(cipherText)
         val lengthPrefix = OPENSSL_SALT_PREFIX.length
@@ -142,5 +130,17 @@ class MultibitBackupCrypter {
 
 
     def encrypt(String s) {
+    }
+
+    private def createCipher(String password, byte[] salt, Boolean forEncryption){
+        val generator = new OpenSSLPBEParametersGenerator
+        val passbytes = PBEParametersGenerator.PKCS5PasswordToBytes(password.toCharArray)
+
+        generator.init(passbytes, salt, NUMBER_OF_ITERATIONS)
+        val ivAndKey =  generator.generateDerivedParameters(KEY_LENGTH, IV_LENGTH);
+
+        val cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESFastEngine))
+        cipher.init(forEncryption, ivAndKey)
+        return cipher
     }
 }
