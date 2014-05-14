@@ -154,7 +154,7 @@ class MultibitInfo {
     }
 
     def writeLabels(){
-        var List<String> lines = new ArrayList
+        val List<String> lines = new ArrayList
         val LS = System.getProperty("line.separator")
         lines.add("multiBit.info,1")
         lines.add("walletVersion,3")

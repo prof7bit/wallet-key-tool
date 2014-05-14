@@ -1,12 +1,18 @@
 package prof7bit.bitcoin.wallettool.fileformats
 
 import com.google.common.base.Charsets
+import com.google.common.base.Joiner
 import com.google.common.io.CharStreams
 import com.google.common.io.Files
 import java.io.File
 import java.io.Reader
 import java.io.StringReader
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
+import java.util.ArrayList
+import java.util.Date
+import java.util.List
+import java.util.TimeZone
 import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.InvalidCipherTextException
 import org.spongycastle.crypto.PBEParametersGenerator
@@ -24,7 +30,10 @@ import prof7bit.bitcoin.wallettool.KeyObject
  */
 class MultibitBackupStrategy  extends ImportExportStrategy {
     val log = LoggerFactory.getLogger(this.class)
-    val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    val LS = System.getProperty("line.separator")
+    val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'") => [
+        timeZone = TimeZone.getTimeZone("GMT")
+    ]
 
     override load(File file, String pass) throws Exception {
         try {
@@ -50,11 +59,12 @@ class MultibitBackupStrategy  extends ImportExportStrategy {
         }
     }
 
-
     override save(File file, String pass) throws Exception {
+        val lines = formatLines
+        val crypter = new MultibitBackupCrypter
+        val encrypted = crypter.encrypt(lines, pass)
+        Files.write(encrypted, file, Charsets.UTF_8)
     }
-
-
 
     private def readEncrypted(File file, String password) throws Exception {
         val encrypted = Files.toString(file, Charsets.UTF_8)
@@ -99,18 +109,32 @@ class MultibitBackupStrategy  extends ImportExportStrategy {
             count = count + 1
         }
     }
+
+    private def formatLines() {
+        val List<String> lines = new ArrayList
+        for (key : walletKeyTool) {
+            lines.add(String.format("%s %s",
+                key.privKeyStr,
+                formatter.format(new Date(key.creationTimeSeconds))
+            ))
+        }
+        return Joiner.on(LS).join(lines)
+    }
 }
 
+
 class MultibitBackupCrypter {
-    static val NUMBER_OF_ITERATIONS = 1024
-    static val OPENSSL_SALT_PREFIX = "Salted__"
+    static val NUM_ITER = 1024
+    static val PREFIX = "Salted__"
     static val SALT_LENGTH = 8
     static val KEY_LENGTH = 256
     static val IV_LENGTH = 128
 
+    static val random = new SecureRandom
+
     def decrypt(String cipherText, String password) throws InvalidCipherTextException {
         val textAsBytes = Base64.decode(cipherText)
-        val lengthPrefix = OPENSSL_SALT_PREFIX.length
+        val lengthPrefix = PREFIX.length
         val lengthPrefixAndSalt = lengthPrefix + SALT_LENGTH
         val lengthCipherBytes = textAsBytes.length - lengthPrefix - SALT_LENGTH
 
@@ -128,15 +152,30 @@ class MultibitBackupCrypter {
         return new String(decryptedBytes, Charsets.UTF_8).trim();
     }
 
+    def encrypt(String plainText, String password) throws InvalidCipherTextException {
+        val salt = newByteArrayOfSize(SALT_LENGTH)
+        random.nextBytes(salt)
 
-    def encrypt(String s) {
+        val aes = createCipher(password, salt, true)
+
+        val plainBytes = plainText.getBytes(Charsets.UTF_8)
+        val encBytes = newByteArrayOfSize(aes.getOutputSize(plainBytes.length))
+        val procLen = aes.processBytes(plainBytes, 0, plainBytes.length, encBytes, 0);
+        val finalLen = aes.doFinal(encBytes, procLen);
+
+        val resultLen = PREFIX.length + salt.length + procLen + finalLen
+        val resultBytes = newByteArrayOfSize(resultLen)
+        System.arraycopy(PREFIX.bytes, 0, resultBytes, 0, PREFIX.length)
+        System.arraycopy(salt, 0, resultBytes, PREFIX.length, salt.length)
+        System.arraycopy(encBytes, 0, resultBytes, PREFIX.length + salt.length, procLen + finalLen)
+        return new String(Base64.encode(resultBytes))
     }
 
     private def createCipher(String password, byte[] salt, Boolean forEncryption){
         val generator = new OpenSSLPBEParametersGenerator
         val passbytes = PBEParametersGenerator.PKCS5PasswordToBytes(password.toCharArray)
 
-        generator.init(passbytes, salt, NUMBER_OF_ITERATIONS)
+        generator.init(passbytes, salt, NUM_ITER)
         val ivAndKey =  generator.generateDerivedParameters(KEY_LENGTH, IV_LENGTH);
 
         val cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESFastEngine))
