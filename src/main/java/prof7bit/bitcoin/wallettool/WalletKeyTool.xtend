@@ -76,15 +76,14 @@ class WalletKeyTool implements Iterable<KeyObject> {
             if (params == null){
                 params = key.params
                 log.debug("initialized params of WalletKeyTool with params of first added key")
-            } else {
-                if (params.equals(key.params)){
-                    keys.add(key)
-                    notifyChange
-                }else{
-                    log.error("{} is from a different network. Cannot mix them in the same wallet",
-                        key.addrStr
-                    )
-                }
+            }
+            if (params.equals(key.params)){
+                keys.add(key)
+                notifyChange
+            }else{
+                log.error("{} is from a different network. Cannot mix them in the same wallet",
+                    key.addrStr
+                )
             }
         }
     }
