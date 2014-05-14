@@ -115,7 +115,7 @@ class MultibitBackupStrategy  extends ImportExportStrategy {
         for (key : walletKeyTool) {
             lines.add(String.format("%s %s",
                 key.privKeyStr,
-                formatter.format(new Date(key.creationTimeSeconds))
+                formatter.format(new Date(key.creationTimeSeconds * 1000L))
             ))
         }
         return Joiner.on(LS).join(lines)
