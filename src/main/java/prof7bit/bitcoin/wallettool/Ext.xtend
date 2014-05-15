@@ -8,6 +8,6 @@ import org.slf4j.Logger
 class Ext {
     static def stacktrace(Logger log, Exception ex){
         log.error(ex.message)
-        log.debug(ex.message, ex)
+        log.trace(ex.message, ex)
     }
 }

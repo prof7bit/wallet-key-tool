@@ -7,9 +7,7 @@ import com.google.common.base.Charsets
 import com.google.common.io.Files
 import java.io.File
 import java.math.BigInteger
-import org.json.simple.JSONArray
-import org.json.simple.JSONObject
-import org.json.simple.JSONValue
+import org.json.JSONObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.InvalidCipherTextException
@@ -38,7 +36,9 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
             parseAndImport(decrypted)
         } catch (Exception e) {
             log.trace(decrypted)
-            val e2 = new Exception("Decryption succeeded but import failed with error: '" + e.toString + "' see debug log for details")
+            val e2 = new Exception("Decryption succeeded but import failed: '"
+                + e.toString + "' Use log level TRACE to see all details"
+            )
             e2.initCause(e)
             throw e2
         }
@@ -47,25 +47,25 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
     private def parseAndImport(String jsonStr)throws Exception {
         var int cntImported = 0
         var int cntMissing = 0
-        val json = JSONValue.parse(jsonStr) as JSONObject
-        val keys = json.getJsonArray("keys")
+        val data = new JSONObject(jsonStr)
+        val keys = data.getJSONArray("keys")
         for (i : 0..<keys.length){
-            val bciKey = keys.getJsonObject(i)
+            val bciKey = keys.getJSONObject(i)
             var String priv = null
             var ECKey ecKey = null
             val addr = bciKey.getString("addr")
-            if (bciKey.containsKey("priv")){
+            if (bciKey.has("priv")){
                 priv = bciKey.getString("priv")
             }
             if (priv != null){
                 ecKey = decodeBase58PK(priv, addr)
-                if (bciKey.containsKey("created_time")){
+                if (bciKey.has("created_time")){
                     ecKey.creationTimeSeconds = bciKey.getLong("created_time")
                 }
 
                 // wrap it with our own object and set optional extra info
                 val key = new KeyObject(ecKey, walletKeyTool.params)
-                if (bciKey.containsKey("label")){
+                if (bciKey.has("label")){
                     key.label = bciKey.getString("label")
                 }
                 walletKeyTool.add(key)
@@ -169,42 +169,4 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
             }
         }
     }
-
-
-    //
-    // some helpers for json parsing (incomplete, only needed combinations)
-    //
-
-    def getJsonObject(JSONArray a, int index) throws Exception {
-        val result = a.get(index) as JSONObject
-        if (result == null) {
-            throw new Exception("element " + index + " not found in json array")
-        }
-        return result
-    }
-
-    def getJsonArray(JSONObject o, String name) throws Exception {
-        val result = o.get(name) as JSONArray
-        if (result == null) {
-            throw new Exception("'" + name + "' not found in json object")
-        }
-        return result
-    }
-
-    def getString(JSONObject o, String name) throws Exception {
-        val result = o.get(name) as String
-        if (result == null) {
-            throw new Exception("'" + name + "' not found in json object")
-        }
-        return result
-    }
-
-    def getLong(JSONObject o, String name) throws Exception {
-        val result = o.get(name) as Long
-        if (result == null) {
-            throw new Exception("'" + name + "' not found in json object")
-        }
-        return result
-    }
-
 }
