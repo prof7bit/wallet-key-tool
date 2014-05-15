@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory
 
 class KeyObject {
     static val log = LoggerFactory.getLogger(KeyObject)
+    static val defaultParams = new MainNetParams
 
     @Property var ECKey ecKey
     @Property var NetworkParameters params
@@ -21,12 +22,8 @@ class KeyObject {
     }
 
     new (String privkey, NetworkParameters params, long creationTimeSeconds) throws AddressFormatException {
-        if (params == null){
-            log.debug("no params given, assuming Bitcoin, itializing params with 'c.g.bitcoin.params.MainNetParams'")
-            this.params = new MainNetParams
-        } else {
-            this.params = params
-        }
+        this.params = params
+        initParamsIfNull
         val key = new DumpedPrivateKey(this.params, privkey).key
         key.creationTimeSeconds = creationTimeSeconds
         this.ecKey = key
@@ -66,6 +63,7 @@ class KeyObject {
      * network plus 1 second.
      */
     def void setEcKey(ECKey ecKey){
+        initParamsIfNull
         if (ecKey.creationTimeSeconds <= params.genesisBlock.timeSeconds){
             log.debug("{} creation date {}, adjusting to time of genesis block",
                 ecKey.toAddress(params),
@@ -94,5 +92,12 @@ class KeyObject {
         }
         result.creationTimeSeconds = _ecKey.creationTimeSeconds
         return result
+    }
+
+    private def initParamsIfNull(){
+        if (params == null){
+            log.debug("no params given, assuming Bitcoin, itializing params with 'c.g.bitcoin.params.MainNetParams'")
+            this.params = defaultParams
+        }
     }
 }

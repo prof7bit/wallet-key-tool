@@ -1,11 +1,17 @@
 package prof7bit.bitcoin.wallettool.fileformats
 
+import com.google.bitcoin.core.Base58
+import com.google.bitcoin.core.ECKey
+import com.google.bitcoin.params.MainNetParams
 import com.google.common.base.Charsets
 import com.google.common.io.Files
 import java.io.File
+import java.math.BigInteger
 import org.json.simple.JSONArray
 import org.json.simple.JSONObject
 import org.json.simple.JSONValue
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.InvalidCipherTextException
 import org.spongycastle.crypto.PBEParametersGenerator
 import org.spongycastle.crypto.engines.AESEngine
@@ -17,35 +23,71 @@ import org.spongycastle.crypto.params.ParametersWithIV
 import org.spongycastle.util.encoders.Base64
 import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.KeyObject
-import com.google.bitcoin.core.DumpedPrivateKey
 
 class BlockchainInfoStrategy extends ImportExportStrategy{
+    private static final Logger log = LoggerFactory.getLogger(BlockchainInfoStrategy);
+
     static val AESBlockSize = 4
     static val AESKeySize = 256
     static val DefaultPBKDF2Iterations = 10;
 
     override load(File file, String pass) throws Exception {
         val b64Text = Files.toString(file, Charsets.UTF_8)
-        val decrypted = decrypt_outer(b64Text, "test", DefaultPBKDF2Iterations)
-
-        println(decrypted)
-
-        val json = JSONValue.parse(decrypted) as JSONObject
-        val keys = json.get("keys") as JSONArray
-        for (key : keys){
-            val addr = (key as JSONObject).get("addr") as String
-            val priv = (key as JSONObject).get("priv") as String
-
-            println(addr + " " + priv)
+        val decrypted = decrypt_outer(b64Text, pass, DefaultPBKDF2Iterations)
+        try {
+            parseAndImport(decrypted)
+        } catch (Exception e) {
+            log.trace(decrypted)
+            val e2 = new Exception("Decryption succeeded but import failed with error: '" + e.toString + "' see debug log for details")
+            e2.initCause(e)
+            throw e2
         }
     }
+
+    private def parseAndImport(String jsonStr)throws Exception {
+        var int cntImported = 0
+        var int cntMissing = 0
+        val json = JSONValue.parse(jsonStr) as JSONObject
+        val keys = json.getJsonArray("keys")
+        for (i : 0..<keys.length){
+            val bciKey = keys.getJsonObject(i)
+            var String priv = null
+            var ECKey ecKey = null
+            val addr = bciKey.getString("addr")
+            if (bciKey.containsKey("priv")){
+                priv = bciKey.getString("priv")
+            }
+            if (priv != null){
+                ecKey = decodeBase58PK(priv, addr)
+                if (bciKey.containsKey("created_time")){
+                    ecKey.creationTimeSeconds = bciKey.getLong("created_time")
+                }
+
+                // wrap it with our own object and set optional extra info
+                val key = new KeyObject(ecKey, walletKeyTool.params)
+                if (bciKey.containsKey("label")){
+                    key.label = bciKey.getString("label")
+                }
+                walletKeyTool.add(key)
+                cntImported = cntImported + 1
+            }else{
+                // watch only not implemented
+                log.info("skipped {} because it is watch only", addr)
+                cntMissing = cntMissing + 1
+            }
+        }
+        log.info("import complete: {} keys imported, {} skipped because keys were missing",
+            cntImported, cntMissing
+        )
+    }
+
 
     override save(File file, String pass) throws Exception {
         throw new UnsupportedOperationException("TODO: auto-generated method stub")
     }
 
 
-    def decrypt_outer(String cipherText, String password, int iterations) throws InvalidCipherTextException {
+    private def decrypt_outer(String cipherText, String password, int iterations) throws InvalidCipherTextException {
         val cipherdata = Base64.decode(cipherText);
 
         //Seperate the IV and cipher data
@@ -55,7 +97,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
         return decrypt(iv, input, password, iterations)
     }
 
-    def decrypt(byte[] iv, byte[] input, String password, int iterations)throws InvalidCipherTextException {
+    private def decrypt(byte[] iv, byte[] input, String password, int iterations)throws InvalidCipherTextException {
         val cipher = createCipher(password, iv, iterations, false)
 
         // decrypt
@@ -94,4 +136,75 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
         System.arraycopy(source, from, range, 0, range.length);
         return range;
     }
+
+    /**
+     * Try to produce an ECKey Object from the given arguments.
+     * BCI has a very uncommon way of encoding the private key, its not the
+     * usual dumped private key format of the Satoshi client, its just base58 of
+     * the key bytes. Most importantly it is also lacking the information whether
+     * it is meant to produce a compressed or uncompressed public key. For this
+     * we try both and compare with the supplied bitcoin address, if none of
+     * them match (which should never happen) then this will throw an exception.
+     *
+     * @param base58Priv String containing the BCI encoded private key
+     * @param addr String containing the bitcoin address
+     * @return a new ECKey object representing this key
+     * @throws Exception if the input can not be interpreted in any meaningful way
+     */
+    private def ECKey decodeBase58PK(String base58Priv, String addr) throws Exception {
+        val privBytes = Base58.decode(base58Priv);
+        var ecKey = new ECKey(new BigInteger(1, privBytes), null, false);
+        if (ecKey.toAddress(new MainNetParams).toString.equals(addr)){
+            log.debug("{} has uncompressed key", addr)
+            return ecKey;
+        } else {
+            ecKey = new ECKey(new BigInteger(1, privBytes), null, true);
+            if (ecKey.toAddress(new MainNetParams).toString.equals(addr)){
+                log.debug("{} has compressed key", addr)
+                return ecKey;
+            } else {
+                val err = addr + " and private key don't match, neither compressed nor uncompressed"
+                log.error(err)
+                throw new Exception(err)
+            }
+        }
+    }
+
+
+    //
+    // some helpers for json parsing (incomplete, only needed combinations)
+    //
+
+    def getJsonObject(JSONArray a, int index) throws Exception {
+        val result = a.get(index) as JSONObject
+        if (result == null) {
+            throw new Exception("element " + index + " not found in json array")
+        }
+        return result
+    }
+
+    def getJsonArray(JSONObject o, String name) throws Exception {
+        val result = o.get(name) as JSONArray
+        if (result == null) {
+            throw new Exception("'" + name + "' not found in json object")
+        }
+        return result
+    }
+
+    def getString(JSONObject o, String name) throws Exception {
+        val result = o.get(name) as String
+        if (result == null) {
+            throw new Exception("'" + name + "' not found in json object")
+        }
+        return result
+    }
+
+    def getLong(JSONObject o, String name) throws Exception {
+        val result = o.get(name) as Long
+        if (result == null) {
+            throw new Exception("'" + name + "' not found in json object")
+        }
+        return result
+    }
+
 }

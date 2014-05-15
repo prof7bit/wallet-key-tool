@@ -7,12 +7,11 @@ import java.io.InputStreamReader
 import org.apache.commons.cli.CommandLine
 import org.apache.commons.cli.GnuParser
 import org.apache.commons.cli.Options
+import org.apache.commons.cli.ParseException
 import org.slf4j.LoggerFactory
-import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
 import prof7bit.bitcoin.wallettool.ui.swing.SwingMain
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
-import org.apache.commons.cli.ParseException
 
 static class Main {
     static val log = LoggerFactory.getLogger(Main)
@@ -55,13 +54,13 @@ static class Main {
     @SuppressWarnings("all")
     static def consoleStart(CommandLine opt) {
         val filename = opt.args.get(0)
+        val pass = opt.getOptionValue("password")
         new WalletKeyTool => [
             promptFunc = consolePromptFunc
             alertFunc = consoleAlertFunc
             yesNoFunc = consoleConfirmFunc
             try {
-                importExportStrategy = MultibitStrategy
-                load(new File(filename), null)
+                load(new File(filename), pass)
                 dumpToConsole
             } catch (Exception e) {
                 log.stacktrace(e)
@@ -71,6 +70,7 @@ static class Main {
 
     static def CommandLine parseOpt(String[] args) throws ParseException {
         val opt_defs = new Options
+        opt_defs.addOption("p", "password", true, "password")
         val optparser = new GnuParser
         optparser.parse(opt_defs, args)
     }
