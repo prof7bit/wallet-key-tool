@@ -133,7 +133,6 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
 
         val padding = new ISO10126d2Padding
         val cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESEngine()), padding)
-        cipher.reset
         cipher.init(forEncryption, params)
         return cipher
     }
