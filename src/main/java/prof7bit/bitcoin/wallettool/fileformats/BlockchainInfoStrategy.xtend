@@ -30,8 +30,15 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
     static val DefaultPBKDF2Iterations = 10;
 
     override load(File file, String pass) throws Exception {
+        var password = pass
+        if (password == null){
+            password = walletKeyTool.prompt("password")
+            if (password == null || password.length == 0){
+                throw new Exception("Import canceled")
+            }
+        }
         val b64Text = Files.toString(file, Charsets.UTF_8)
-        val decrypted = decrypt_outer(b64Text, pass, DefaultPBKDF2Iterations)
+        val decrypted = decrypt_outer(b64Text, password, DefaultPBKDF2Iterations)
         try {
             parseAndImport(decrypted)
         } catch (Exception e) {
