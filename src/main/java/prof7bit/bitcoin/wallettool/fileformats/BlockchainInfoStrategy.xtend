@@ -29,7 +29,7 @@ import prof7bit.bitcoin.wallettool.KeyObject
 class BlockchainInfoStrategy extends ImportExportStrategy{
     private static final Logger log = LoggerFactory.getLogger(BlockchainInfoStrategy);
 
-    static val AESBlockSize = 4
+    static val AESBlockSize = 16
     static val AESKeySize = 256
     static val DefaultPBKDF2Iterations = 10;
 
@@ -55,8 +55,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
             parseAndImport(decrypted)
         } catch (Exception e) {
             log.trace(decrypted)
-            val e2 = new Exception("Decryption succeeded but import failed: '"
-                + e.toString + "' Use log level TRACE to see all details"
+            val e2 = new Exception("Import failed: '" + e.toString + "' Use log level TRACE to see all details"
             )
             e2.initCause(e)
             throw e2
@@ -65,14 +64,33 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
 
     /**
      * Parse the decrypted json wallet and try to add all its keys to the
-     * walletKeyTool instance.
+     * walletKeyTool instance. If the wallet is "double encrypted" which
+     * means the keys themselves are encrypted with the secondary password
+     * then it will prompt the user for the secondary password.
      * @param jsonStr the plaintext json string representing the entire wallet
-     * @throws Exception when the data is malformed and import fails
+     * @throws Exception when the data is malformed and import fails or
+     * when the wallet has "double encryption" and the second password
+     * is wrong.
      */
-    private def parseAndImport(String jsonStr)throws Exception {
+    private def parseAndImport(String jsonStr) throws Exception {
         var int cntImported = 0
         var int cntMissing = 0
+        var doubleEnc = false
+        var doubleEncIter = DefaultPBKDF2Iterations
+        var doubleEncSalt = ""
+        var doubleEncPass = ""
         val data = new JSONObject(jsonStr)
+        if (data.has("double_encryption")){
+            if (data.getBoolean("double_encryption")){
+                doubleEnc = true
+                doubleEncSalt = data.getString("sharedKey")
+                doubleEncIter = data.getJSONObject("options").getInt("pbkdf2_iterations")
+                doubleEncPass = walletKeyTool.prompt("secondary password")
+                if (doubleEncPass == null || doubleEncPass.length == 0){
+                    throw new Exception("no password given, import canceled")
+                }
+            }
+        }
         val keys = data.getJSONArray("keys")
         for (i : 0..<keys.length){
             val bciKey = keys.getJSONObject(i)
@@ -80,7 +98,12 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
             var ECKey ecKey = null
             val addr = bciKey.getString("addr")
             if (bciKey.has("priv")){
-                priv = bciKey.getString("priv")
+                if (doubleEnc){
+                    val doubleEncText = bciKey.getString("priv")
+                    priv = decrypt(doubleEncText, doubleEncSalt, doubleEncPass, doubleEncIter)
+                } else {
+                    priv = bciKey.getString("priv")
+                }
             }
             if (priv != null){
                 ecKey = decodeBase58PK(priv, addr)
@@ -114,7 +137,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
     /**
      * This is used to remove the outer layer of encryption (the whole file).
      * @param cipherText the base64 encoded text of the backup file
-     * @param password needed for decryption, this is the blockchain.info user password
+     * @param password needed for decryption, this is the blockchain.info primary password
      * @param iterations the PBKDF2 iterations (10 by default if not otherwise specified)
      * @return decrypted plain text. This would be the json string representation of the wallet
      * @throws InvalidCipherTextException if decryption fails
@@ -123,10 +146,22 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
         val cipherdata = Base64.decode(cipherText);
 
         //Separate the IV and cipher data
-        val iv = copyOfRange(cipherdata, 0, AESBlockSize * 4);
-        val input = copyOfRange(cipherdata, AESBlockSize * 4, cipherdata.length);
+        val iv = copyOfRange(cipherdata, 0, AESBlockSize);
+        val input = copyOfRange(cipherdata, AESBlockSize, cipherdata.length);
 
         return decrypt(iv, input, password, iterations)
+    }
+
+    /**
+     * This is used to decrypt the individual key with the secondary password
+     * @param encPrivKey the base64 encoded encrypted private key (from the "priv" field)
+     * @param sharedKey used as a password salt (this is taken from the "sharedKey" field)
+     * @param password2 the secondary password for this wallet
+     * @param iterations as found in the "pbkdf2_iterations" field of the wallet
+     * @throws InvalidCipherTextException if decryption fails
+     */
+    private def decrypt(String encPrivKey, String sharedKey, String password2, int iterations) throws InvalidCipherTextException {
+        decrypt(encPrivKey, sharedKey + password2, iterations)
     }
 
     /**
@@ -135,6 +170,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
      * @param input byte array with encrypted data
      * @param password used to derive the key
      * @param iterations number of PBKDF2 iterations
+     * @return String with decrypted plain text
      * @throws InvalidCipherTextException if decryption fails
      */
     private def decrypt(byte[] iv, byte[] input, String password, int iterations) throws InvalidCipherTextException {
