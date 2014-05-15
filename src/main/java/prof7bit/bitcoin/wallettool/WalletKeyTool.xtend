@@ -187,7 +187,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
             return MultibitStrategy
         } else if (fn.endsWith(".key")) {
             return MultibitBackupStrategy
-        } else if (fn.endsWith(".aes.json")) {
+        } else if (fn.endsWith(".json")) {
             return BlockchainInfoStrategy
         } else {
             throw new RuntimeException("not a supported wallet file format")
