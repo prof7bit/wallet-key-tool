@@ -224,7 +224,8 @@ class WalletPanel extends JPanel{
                     try {
                        keyTool.save(file, pass)
                     } catch (Exception e) {
-                        log.stacktrace(e)
+                       log.stacktrace(e)
+                       alert(e.message)
                     }
                 }else{
                     log.debug("password dialog canceled")

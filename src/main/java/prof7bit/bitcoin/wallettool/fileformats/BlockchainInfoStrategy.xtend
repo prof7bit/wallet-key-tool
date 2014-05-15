@@ -22,6 +22,10 @@ import org.spongycastle.util.encoders.Base64
 import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.KeyObject
 
+/**
+ * Strategy to handle the blockchain.info
+ * "My Wallet" backup file format (*.aes.json)
+ */
 class BlockchainInfoStrategy extends ImportExportStrategy{
     private static final Logger log = LoggerFactory.getLogger(BlockchainInfoStrategy);
 
@@ -29,6 +33,14 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
     static val AESKeySize = 256
     static val DefaultPBKDF2Iterations = 10;
 
+    /**
+     * Entry point for the WalletKeyTool import, tries to import the
+     * file into the current WalletKeyTool instance.
+     * @param file the file to be imported
+     * @param pass the password for decryption or null (then it will prompt)
+     * @throws Exception if import fails containing a human readable and comprehensible
+     * error message explaining what happened (message string will be presented to the user)
+     */
     override load(File file, String pass) throws Exception {
         var password = pass
         if (password == null){
@@ -38,7 +50,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
             }
         }
         val b64Text = Files.toString(file, Charsets.UTF_8)
-        val decrypted = decrypt_outer(b64Text, password, DefaultPBKDF2Iterations)
+        val decrypted = decrypt(b64Text, password, DefaultPBKDF2Iterations)
         try {
             parseAndImport(decrypted)
         } catch (Exception e) {
@@ -51,6 +63,12 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
         }
     }
 
+    /**
+     * Parse the decrypted json wallet and try to add all its keys to the
+     * walletKeyTool instance.
+     * @param jsonStr the plaintext json string representing the entire wallet
+     * @throws Exception when the data is malformed and import fails
+     */
     private def parseAndImport(String jsonStr)throws Exception {
         var int cntImported = 0
         var int cntMissing = 0
@@ -90,21 +108,36 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
 
 
     override save(File file, String pass) throws Exception {
-        throw new UnsupportedOperationException("TODO: auto-generated method stub")
+        throw new UnsupportedOperationException("blockchain.info export is not yet implemented")
     }
 
-
-    private def decrypt_outer(String cipherText, String password, int iterations) throws InvalidCipherTextException {
+    /**
+     * This is used to remove the outer layer of encryption (the whole file).
+     * @param cipherText the base64 encoded text of the backup file
+     * @param password needed for decryption, this is the blockchain.info user password
+     * @param iterations the PBKDF2 iterations (10 by default if not otherwise specified)
+     * @return decrypted plain text. This would be the json string representation of the wallet
+     * @throws InvalidCipherTextException if decryption fails
+     */
+    private def decrypt(String cipherText, String password, int iterations) throws InvalidCipherTextException {
         val cipherdata = Base64.decode(cipherText);
 
-        //Seperate the IV and cipher data
+        //Separate the IV and cipher data
         val iv = copyOfRange(cipherdata, 0, AESBlockSize * 4);
         val input = copyOfRange(cipherdata, AESBlockSize * 4, cipherdata.length);
 
         return decrypt(iv, input, password, iterations)
     }
 
-    private def decrypt(byte[] iv, byte[] input, String password, int iterations)throws InvalidCipherTextException {
+    /**
+     * Decrypt the byte array according to the specifications given by blockchain.info.
+     * @param iv initialization vector used to initialize the cipher
+     * @param input byte array with encrypted data
+     * @param password used to derive the key
+     * @param iterations number of PBKDF2 iterations
+     * @throws InvalidCipherTextException if decryption fails
+     */
+    private def decrypt(byte[] iv, byte[] input, String password, int iterations) throws InvalidCipherTextException {
         val cipher = createCipher(password, iv, iterations, false)
 
         // decrypt
@@ -120,9 +153,18 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
     }
 
     def encrypt(String plainText, String password) throws InvalidCipherTextException {
-
+        return ""
     }
 
+    /**
+     * Create and initialize a Cipher object usable to perform the decryption according
+     * to blockchain.info's specifications.
+     * @param password used to derive the key
+     * @param iv initialization vector
+     * @param PBKDF2Iterations number of PBKDF2 iterations
+     * @param forEncryption shall the cipher be initialized for encryption or decryption
+     * @return a newly initialized Cipher object usable to encrypt or decrypt the data from blockchain.info
+     */
     private def createCipher(String password, byte[] iv, int PBKDF2Iterations, Boolean forEncryption){
         val generator = new PKCS5S2ParametersGenerator
         val passbytes = PBEParametersGenerator.PKCS5PasswordToUTF8Bytes(password.toCharArray())
