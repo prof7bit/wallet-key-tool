@@ -107,16 +107,11 @@ class WalletPanel extends JPanel{
                                 keyTool.remove(row)
                             ]
                         ]
-                        new JMenuItem("Fetch creation date from blockchain.info") => [
-                            popup.add(it)
-                            addActionListener [
-                                keyTool.doRemoteFetchCreationDate(row)
-                            ]
-                        ]
-                        new JMenuItem("Fetch balance from blockchain.info") => [
+                        new JMenuItem("Fetch balance and creation date from blockchain.info") => [
                             popup.add(it)
                             addActionListener [
                                 keyTool.doRemoteFetchBalance(row)
+                                keyTool.doRemoteFetchCreationDate(row)
                             ]
                         ]
                         val key = keyTool.get(row)
