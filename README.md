@@ -28,22 +28,43 @@ will download it for you.
 
 ## how to run
 
-    java -jar wallet-key-tool.jar <filename>
+On Windows you probably just need to double-click the jar file
+and it will start (If you have Java installed).
 
-will ask for a password (if the file is encrypted), then dump
-the addresses and keys to the console and exit. If you run it
-without file name
+On Systems where there is a command line interface you can also
+run it by executing the following command:
 
     java -jar wallet-key-tool.jar
+    
+This will open a GUI window with which you can interact, info
+and error messages will be printed to stderr. If you want to
+increase the debug level then run it like this:
 
-it will show a simple Swing GUI where you can use a file dialog to
-open the wallet file, a tabular interface to edit the wallet contents
-comfortably using the mouse, move keys between two wallets and the
-ability to export the edited files as new wallet files in all
-supported file formats (currently only MultiBit).
+    java -Dorg.slf4j.simpleLogger.defaultLogLevel=TRACE -jar wallet-key-tool.jar
+
+Note: the -D option must come before the -jar option, it is
+passed directly to java.
+
+If you just want to dump the contents of a wallet to the 
+console with no GUI interaction then you can pass it a file 
+name, if you do this then it will not attemt top open any 
+graphical user interface, it will just dump the wallet contents 
+to stdout and exit. Note that the format of the dunp is still 
+subject to change, keep this in mind when writing a parser
+for it.
+    
+    java -jar wallet-key-tool.jar <filename>
+
+This will prompt for a password on stdin if the file is 
+encrypted. If you want to avoid the password prompt you can 
+supply a password with the --password="my pass phrase" switch 
+(you need the quotes if it contains spaces). Beware that this
+is dangerous since it might leave the password in your shell 
+history or make it visible in the process list, use it only 
+if you know what you are doing.
 
 Example session in the console (I did not enter a passphrase,
-so no private keys to see here):
+I just pressed enter, so no private keys were decrypted):
 
     java -jar build/libs/wallet-key-tool.jar /home/bernd/Schotter/Schotter.wallet
     [main] INFO org.multibit.store.MultiBitWalletProtobufSerializer - Loading wallet extension org.multibit.walletProtect.2
