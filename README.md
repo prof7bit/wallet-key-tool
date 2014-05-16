@@ -14,13 +14,12 @@ you will find the runnable .jar file in build/libs/
 
 ## I'm too lazy to build it myself, where is the jar?
 
-click the "releases" link (github project page in the
-middle above the files listing) and look for the
-"wallet-key-tool.jar" file, download and run it as
-described below.
+See the [releases](https://github.com/prof7bit/wallet-key-tool/releases) 
+section and look for the "wallet-key-tool.jar" file, download and 
+run it as described below.
 
 This release version might be a bit behind the latest
-master branch, so I recommend to getting the source and
+master branch, so I recommend you get the source and
 build it yourself, its really not that complicated, the
 gradle build system does a wonderful job of automating
 it all, you don't even need gradle to be installed, it
