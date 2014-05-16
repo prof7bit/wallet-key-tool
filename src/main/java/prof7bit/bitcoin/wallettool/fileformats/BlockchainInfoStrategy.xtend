@@ -49,8 +49,29 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
                 throw new Exception("Import canceled")
             }
         }
-        val b64Text = Files.toString(file, Charsets.UTF_8)
-        val decrypted = decrypt(b64Text, password, DefaultPBKDF2Iterations)
+
+        val fileContents = Files.toString(file, Charsets.UTF_8)
+
+        // its either version 1 (entire file is base64 payload)
+        // or its version 2 which is a small JSON wrapper around
+        // the version 1 payload.
+        var String payload
+        var int iterations
+        try {
+            // let's just try version 2 and if this fails to parse...
+            val jsonData = new JSONObject(fileContents)
+            iterations = jsonData.getInt("pbkdf2_iterations")
+            payload = jsonData.getString("payload")
+        } catch (Exception e) {
+            // ... then it can only be version 1
+            iterations = DefaultPBKDF2Iterations
+            payload = fileContents
+        }
+
+        // at this point we should have something to decrypt...
+        val decrypted = decrypt(payload, password, iterations)
+
+        // ...and now we should have a plaintext wallet JSON string
         try {
             parseAndImport(decrypted)
         } catch (Exception e) {
@@ -63,11 +84,11 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
     }
 
     /**
-     * Parse the decrypted json wallet and try to add all its keys to the
+     * Parse the decrypted JSON wallet and try to add all its keys to the
      * walletKeyTool instance. If the wallet is "double encrypted" which
      * means the keys themselves are encrypted with the secondary password
      * then it will prompt the user for the secondary password.
-     * @param jsonStr the plaintext json string representing the entire wallet
+     * @param jsonStr the plaintext JSON string representing the entire wallet
      * @throws Exception when the data is malformed and import fails or
      * when the wallet has "double encryption" and the second password
      * is wrong.
@@ -139,7 +160,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
      * @param cipherText the base64 encoded text of the backup file
      * @param password needed for decryption, this is the blockchain.info primary password
      * @param iterations the PBKDF2 iterations (10 by default if not otherwise specified)
-     * @return decrypted plain text. This would be the json string representation of the wallet
+     * @return decrypted plain text. This would be the JSON string representation of the wallet
      * @throws InvalidCipherTextException if decryption fails
      */
     private def decrypt(String cipherText, String password, int iterations) throws InvalidCipherTextException {
