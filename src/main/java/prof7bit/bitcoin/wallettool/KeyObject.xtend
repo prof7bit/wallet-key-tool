@@ -53,6 +53,10 @@ class KeyObject {
         _ecKey.hasPrivKey
     }
 
+    def isCompressed(){
+        _ecKey.compressed
+    }
+
     /**
      * Set the ecKey. We don't want keys with missing creation date, so we fix it
      * here immediately. Especially MultiBit has a bug where it starts behaving

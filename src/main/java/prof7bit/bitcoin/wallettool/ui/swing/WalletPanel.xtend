@@ -119,6 +119,19 @@ class WalletPanel extends JPanel{
                                 keyTool.doRemoteFetchBalance(row)
                             ]
                         ]
+                        val key = keyTool.get(row)
+                        var compOtherTxt = "compressed"
+                        if (key.hasPrivKey){
+                            if (key.compressed){
+                                compOtherTxt = "uncompressed"
+                            }
+                            new JMenuItem("Add " + compOtherTxt + " version of this key") => [
+                                popup.add(it)
+                                addActionListener [
+                                    keyTool.addOtherCompressedVersion(row)
+                                ]
+                            ]
+                        }
 //                        new JMenuItem("Fetch all data for all keys from blockchain.info") => [
 //                            popup.add(it)
 //                            addActionListener [

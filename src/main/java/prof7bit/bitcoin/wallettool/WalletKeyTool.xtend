@@ -3,6 +3,7 @@ package prof7bit.bitcoin.wallettool
 import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.NetworkParameters
 import java.io.File
+import java.math.BigInteger
 import java.util.ArrayList
 import java.util.Date
 import java.util.Iterator
@@ -85,12 +86,16 @@ class WalletKeyTool implements Iterable<KeyObject> {
                     key.addrStr
                 )
             }
+            return key
+        } else {
+            return null
         }
     }
 
     def add(ECKey ecKey){
         // KeyWrapper constructor will know what to do if params==null
-        add(new KeyObject(ecKey, params))
+        val k = new KeyObject(ecKey, params)
+        return add(k)
     }
 
     def addKeyFromOtherInstance(WalletKeyTool other, int i){
@@ -108,6 +113,22 @@ class WalletKeyTool implements Iterable<KeyObject> {
         keys.clear
         params = null
         notifyChange
+    }
+
+    def addOtherCompressedVersion(int i){
+        val KeyObject ko_this = get(i)
+        var ECKey ec_other
+        var String label
+        if (ko_this.compressed) {
+            ec_other = new ECKey(new BigInteger(1, ko_this.ecKey.privKeyBytes), null, false)
+            label = "uncompressed version of "
+        } else {
+            ec_other = new ECKey(new BigInteger(1, ko_this.ecKey.privKeyBytes), null, true)
+            label = "compressed version of "
+        }
+        val ko_other = new KeyObject(ec_other, params)
+        ko_other.label = label + ko_this.addrStr + " " + ko_this.label
+        return add(ko_other)
     }
 
     def getKeyCount() {
