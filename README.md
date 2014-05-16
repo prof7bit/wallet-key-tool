@@ -31,25 +31,29 @@ will download it for you.
 On Windows you probably just need to double-click the jar file
 and it will start (If you have Java installed).
 
-On Systems where there is a command line interface you can also
-run it by executing the following command:
+On systems where there is a command line interface (this also
+works on Windows, its just a bit harder to find there, they 
+really seem to hate their own users) you can also run it by 
+executing the following command:
 
     java -jar wallet-key-tool.jar
     
 This will open a GUI window with which you can interact, info
 and error messages will be printed to stderr. If you want to
-increase the debug level then run it like this:
+increase the log level then run it like this:
 
     java -Dorg.slf4j.simpleLogger.defaultLogLevel=TRACE -jar wallet-key-tool.jar
 
 Note: the -D option must come before the -jar option, it is
-passed directly to java.
+passed directly to java. Allowable log levels are:
+ERROR, WARN, INFO, DEBUG, TRACE, the default is INFO,
+if you want to see stack traces then use TRACE.
 
 If you just want to dump the contents of a wallet to the 
 console with no GUI interaction then you can pass it a file 
-name, if you do this then it will not attemt top open any 
+name, if you do this then it will not attemt to open any 
 graphical user interface, it will just dump the wallet contents 
-to stdout and exit. Note that the format of the dunp is still 
+to stdout and exit. Note that the format of the dump is still 
 subject to change, keep this in mind when writing a parser
 for it.
     
