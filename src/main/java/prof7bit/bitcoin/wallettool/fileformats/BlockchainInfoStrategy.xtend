@@ -209,10 +209,6 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
         return new String(out, Charsets.UTF_8);
     }
 
-    def encrypt(String plainText, String password) throws InvalidCipherTextException {
-        return ""
-    }
-
     /**
      * Create and initialize a Cipher object usable to perform the decryption according
      * to blockchain.info's specifications.
