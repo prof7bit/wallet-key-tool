@@ -7,6 +7,8 @@ import com.google.common.io.Files
 import java.io.File
 import java.io.Reader
 import java.io.StringReader
+import java.io.UnsupportedEncodingException
+import java.net.URLDecoder
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.ArrayList
@@ -24,11 +26,13 @@ import org.spongycastle.util.encoders.Base64
 import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.KeyObject
 
+import static extension prof7bit.bitcoin.wallettool.Ext.*
+
 /**
- * read and write Multibit backup file (*.key).
- * this can also be used for Schildbach backups
+ * read and write Bitcoin-Qt "dumpwallet" format or
+ * Multibit backup file (*.key) or Schildbach backup
  */
-class MultibitBackupStrategy  extends ImportExportStrategy {
+class WalletDumpStrategy  extends ImportExportStrategy {
     val log = LoggerFactory.getLogger(this.class)
     val LS = System.getProperty("line.separator")
     val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'") => [
@@ -39,7 +43,7 @@ class MultibitBackupStrategy  extends ImportExportStrategy {
         try {
             log.debug("trying to read file: " + file.path)
             readUnencrypted(file)
-            log.info("Multibit unencrypted backup import succeeded")
+            log.info("unencrypted backup import succeeded")
         } catch (Exception e) {
             log.debug("unreadable, maybe encrypted, trying again with password")
             var pass2 = pass
@@ -62,9 +66,14 @@ class MultibitBackupStrategy  extends ImportExportStrategy {
     override save(File file, String pass) throws Exception {
         val lines = formatLines
         val crypter = new MultibitBackupCrypter
-        val encrypted = crypter.encrypt(lines, pass)
-        Files.write(encrypted, file, Charsets.UTF_8)
-        log.info("encrypted Multibit backup file written to {}", file.path)
+        if (pass.length > 0){
+            val encrypted = crypter.encrypt(lines, pass)
+            Files.write(encrypted, file, Charsets.UTF_8)
+            log.info("encrypted wallet dump file written to {}", file.path)
+        } else {
+            Files.write(lines, file, Charsets.UTF_8)
+            log.info("unencrypted wallet dump file written to {}", file.path)
+        }
     }
 
     private def readEncrypted(File file, String password) throws Exception {
@@ -95,29 +104,48 @@ class MultibitBackupStrategy  extends ImportExportStrategy {
         for (line : lines){
             if (!line.startsWith("#")){
                 val fields = line.split(" ")
-                if (fields.length == 2){
+                if (fields.length > 1){
                     val key = new KeyObject(
                         fields.get(0),
                         walletKeyTool.params,
                         formatter.parse(fields.get(1)).time / 1000L
                     )
+
+                    // additional fields are optional, the bitcoin-core client
+                    // for example might add a label=something field into the next
+                    // column and that is what we try to read now if it exists
+                    for (i : 2..<fields.length){
+                        val field = fields.get(i)
+                        if (field.equals("change=1")){
+                            key.label = key.label + "(change)"
+                        }
+                        if (field.equals("reserve=1")){
+                            key.label = key.label + "(reserve)"
+                        }
+                        if (field.startsWith("label=")){
+                            key.label = key.label + URLDecoder.decode(field.substring(6), Charsets.UTF_8.name)
+                        }
+                    }
+
                     log.debug("importing {}", key.addrStr)
                     walletKeyTool.add(key)
-                } else {
-                    throw new Exception("malformed line " + count)
                 }
             }
             count = count + 1
         }
     }
 
-    private def formatLines() {
+    private def formatLines() throws UnsupportedEncodingException {
         val List<String> lines = new ArrayList
+        lines.add("# Wallet dump created by prof7bit/wallet-key-tool")
+        lines.add("# * Created on " + formatter.format(new Date()))
         for (key : walletKeyTool) {
-            lines.add(String.format("%s %s",
-                key.privKeyStr,
-                formatter.format(new Date(key.creationTimeSeconds * 1000L))
-            ))
+            var line = key.privKeyStr + " " + formatter.format(new Date(key.creationTimeSeconds * 1000L))
+            if (key.label != ""){
+                line = line + " label=" + key.label.urlencode
+            }
+            line = line + " # " + key.addrStr
+            lines.add(line)
         }
         return Joiner.on(LS).join(lines)
     }

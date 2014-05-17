@@ -278,11 +278,16 @@ class WalletPanel extends JPanel{
         while(true){
             val pass = prompt("please enter a pass phrase to encrypt the wallet")
             if (pass == null){
-                return null
+                return null // cancel
             }else{
+                if (pass.length == 0){
+                    // empty password means save unencrypted,
+                    // we don't need to ask to repeat it
+                    return pass
+                }
                 val pass2 = prompt("please repeat the pass phrase")
                 if (pass2 == null){
-                    return null
+                    return null // cancel
                 } else {
                     if (pass2.equals(pass)){
                         return pass

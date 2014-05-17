@@ -9,6 +9,7 @@ import com.google.common.base.Joiner
 import com.google.common.io.Files
 import java.io.File
 import java.io.IOException
+import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.ArrayList
@@ -20,7 +21,6 @@ import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.WalletKeyTool
 
 import static extension prof7bit.bitcoin.wallettool.Ext.*
-import java.io.UnsupportedEncodingException
 
 /**
  * Load and save keys in MultiBit wallet format
@@ -99,9 +99,11 @@ class MultibitStrategy extends ImportExportStrategy {
             }
         }
         if (wallet.keychain.length + wallet.watchedScripts.length > 0){
-            val scrypt = new KeyCrypterScrypt
-            val aesKey = scrypt.deriveKey(passphrase)
-            wallet.encrypt(scrypt, aesKey)
+            if (passphrase.length > 0){
+                val scrypt = new KeyCrypterScrypt
+                val aesKey = scrypt.deriveKey(passphrase)
+                wallet.encrypt(scrypt, aesKey)
+            }
             wallet.setDescription("created by wallet-key-tool")
             wallet.setLastBlockSeenHeight(0)
             wallet.saveToFile(file)

@@ -10,7 +10,7 @@ import java.util.Iterator
 import java.util.List
 import org.slf4j.LoggerFactory
 import prof7bit.bitcoin.wallettool.fileformats.BlockchainInfoStrategy
-import prof7bit.bitcoin.wallettool.fileformats.MultibitBackupStrategy
+import prof7bit.bitcoin.wallettool.fileformats.WalletDumpStrategy
 import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
 
 class WalletKeyTool implements Iterable<KeyObject> {
@@ -174,7 +174,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
 
     def dumpToConsole() {
         for (i : 0 ..< keyCount) {
-            println(getAddressStr(i) + " " + getPrivkeyStr(i))
+            println(getAddressStr(i) + " " + getPrivkeyStr(i) + " " + getLabel(i))
         }
     }
 
@@ -207,7 +207,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
         if (fn.endsWith(".wallet")) {
             return MultibitStrategy
         } else if (fn.endsWith(".key")) {
-            return MultibitBackupStrategy
+            return WalletDumpStrategy
         } else if (fn.endsWith(".json")) {
             return BlockchainInfoStrategy
         } else {
