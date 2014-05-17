@@ -37,18 +37,11 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
      * Entry point for the WalletKeyTool import, tries to import the
      * file into the current WalletKeyTool instance.
      * @param file the file to be imported
-     * @param pass the password for decryption or null (then it will prompt)
+     * @param pass the password for decryption or null
      * @throws Exception if import fails containing a human readable and comprehensible
      * error message explaining what happened (message string will be presented to the user)
      */
     override load(File file, String pass) throws Exception {
-        var password = pass
-        if (password == null){
-            password = walletKeyTool.prompt("password")
-            if (password == null || password.length == 0){
-                throw new Exception("Import canceled")
-            }
-        }
 
         val fileContents = Files.toString(file, Charsets.UTF_8)
 
@@ -68,18 +61,26 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
             payload = fileContents
         }
 
-        // at this point we should have something to decrypt...
-        val decrypted = decrypt(payload, password, iterations)
-
-        // ...and now we should have a plaintext wallet JSON string
         try {
-            parseAndImport(decrypted)
-        } catch (Exception e) {
-            log.trace(decrypted)
-            val e2 = new Exception("Import failed: '" + e.toString + "' Use log level TRACE to see all details"
-            )
-            e2.initCause(e)
-            throw e2
+            // just in case someone has already decrypted the payload
+            // with an external tool and wants to import the plain JSON
+            parseAndImport(payload)
+        } catch (Exception e){
+            if (pass == null){
+                // if we are in phase 1 (probing for unencrypted formats) we can stop here
+                throw new Exception("does not look like unencrypted blockchain.info backup")
+            }
+
+            val decrypted = decrypt(payload, pass, iterations)
+            try {
+                parseAndImport(decrypted)
+            } catch (Exception e1) {
+                log.trace(decrypted)
+                val e2 = new Exception("Import failed: '" + e.toString + "' Use log level TRACE to see all details"
+                )
+                e2.initCause(e1)
+                throw e2
+            }
         }
     }
 
@@ -103,6 +104,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
         val data = new JSONObject(jsonStr)
         if (data.has("double_encryption")){
             if (data.getBoolean("double_encryption")){
+                log.info("double encryption, need secondary password")
                 doubleEnc = true
                 doubleEncSalt = data.getString("sharedKey")
                 doubleEncIter = data.getJSONObject("options").getInt("pbkdf2_iterations")

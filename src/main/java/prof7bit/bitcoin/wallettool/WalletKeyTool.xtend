@@ -46,9 +46,52 @@ class WalletKeyTool implements Iterable<KeyObject> {
     }
 
     def load(File file, String pass) throws Exception {
-        setImportExportStrategy(getStrategyFromFileName(file))
-        importExportStrategy.load(file, pass)
-        notifyChange
+        val strategies = #[
+            WalletDumpStrategy,
+            MultibitStrategy,
+            BlockchainInfoStrategy
+        ]
+
+        for (strat : strategies){
+            if (tryLoadWithStrategy(file, null, strat)){
+                notifyChange
+                return
+            }
+        }
+
+        var password = pass
+        if (password == null){
+            password = prompt("none of the unencrypted strategies succeeded,\nwe might need a password")
+        }
+        if (password == null || password.length == 0){
+            throw new Exception("import canceled")
+        }
+
+        for (strat : strategies){
+            if (tryLoadWithStrategy(file, password, strat)){
+                notifyChange
+                return
+            }
+        }
+        throw new Exception("import failed, none of the strategies worked. See log level TRACE for details")
+    }
+
+    def tryLoadWithStrategy(File file, String pass, Class<? extends ImportExportStrategy> strat)throws InstantiationException, IllegalAccessException {
+        setImportExportStrategy(strat)
+        if (pass == null){
+            log.info("trying import strategy " + strat.simpleName)
+        }else{
+            log.info("trying encrypted import strategy " + strat.simpleName)
+        }
+        try {
+            importExportStrategy.load(file, pass)
+            log.info(strat.simpleName + " succeeded!")
+            return true
+        } catch (Exception e) {
+            log.info(strat.simpleName + " said: " + e.message)
+            log.trace("attempt to use " + strat.simpleName + " failed", e)
+            return false
+        }
     }
 
     def save(File file, String pass) throws Exception {
@@ -203,7 +246,6 @@ class WalletKeyTool implements Iterable<KeyObject> {
 
     def Class<? extends ImportExportStrategy> getStrategyFromFileName(File file){
         val fn = file.path
-        println(fn)
         if (fn.endsWith(".wallet")) {
             return MultibitStrategy
         } else if (fn.endsWith(".key")) {

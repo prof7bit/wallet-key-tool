@@ -40,27 +40,13 @@ class WalletDumpStrategy  extends ImportExportStrategy {
     ]
 
     override load(File file, String pass) throws Exception {
-        try {
-            log.debug("trying to read file: " + file.path)
+        log.debug("trying to read file: " + file.path)
+        if (pass == null){
             readUnencrypted(file)
-            log.info("unencrypted backup import succeeded")
-        } catch (Exception e) {
-            log.debug("unreadable, maybe encrypted, trying again with password")
-            var pass2 = pass
-            if (pass2 == null){
-                pass2 = walletKeyTool.prompt("Password")
-            }
-            if (pass2 != null && pass2.length > 0){
-                try {
-                    readEncrypted(file, pass2)
-                    log.info("Multibit encrypted backup import succeeded")
-                } catch (Exception e2) {
-                    throw new Exception("decryption failed: " + e.message)
-                }
-            } else {
-                log.info("import canceled")
-            }
+        }else{
+            readEncrypted(file, pass)
         }
+        log.info("import succeeded")
     }
 
     override save(File file, String pass) throws Exception {
@@ -129,9 +115,12 @@ class WalletDumpStrategy  extends ImportExportStrategy {
 
                     log.debug("importing {}", key.addrStr)
                     walletKeyTool.add(key)
+                    count = count + 1
                 }
             }
-            count = count + 1
+        }
+        if (count == 0){
+            throw new Exception("file did not contain any keys")
         }
     }
 

@@ -39,10 +39,7 @@ class MultibitStrategy extends ImportExportStrategy {
         if (wallet.encrypted) {
             log.debug("wallet is encrypted")
             if (pass == null){
-                val pass_answered = getWalletKeyTool.prompt("Wallet is encrypted. Enter pass phrase")
-                if (pass_answered != null && pass_answered.length > 0) {
-                    aesKey = wallet.keyCrypter.deriveKey(pass_answered)
-                }
+                throw new Exception("need password")
             }else{
                 aesKey = wallet.keyCrypter.deriveKey(pass)
             }
@@ -64,7 +61,7 @@ class MultibitStrategy extends ImportExportStrategy {
                             if (getWalletKeyTool.confirm("decryption error, continue?")){
                                 allowFailed = true
                             } else {
-                                return
+                                throw new Exception("decryption failed")
                             }
                         }
                         watch_only_key.creationTimeSeconds = key.creationTimeSeconds

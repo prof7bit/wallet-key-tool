@@ -160,7 +160,7 @@ class WalletPanel extends JPanel{
 
     val fc = new JFileChooser => [
         addChoosableFileFilter(new FileNameExtensionFilter("Blockchain.info backup (*.aes.json)", "json"))
-        addChoosableFileFilter(new FileNameExtensionFilter("Multibit backup (*.key)", "key"))
+        addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
         preferredSize = new Dimension(600, 500)
     ]
@@ -297,11 +297,6 @@ class WalletPanel extends JPanel{
                 }
             }
         }
-    }
-
-    def setFileFilters(JFileChooser fd){
-        fd.addChoosableFileFilter(new FileNameExtensionFilter("Multibit backup", "key"))
-        fd.setFileFilter(new FileNameExtensionFilter("Multibit wallet", "wallet"))
     }
 }
 
