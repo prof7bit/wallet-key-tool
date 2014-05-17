@@ -51,7 +51,6 @@ static class Main {
         }
     }
 
-    @SuppressWarnings("all")
     static def consoleStart(CommandLine opt) {
         val filename = opt.args.get(0)
         val pass = opt.getOptionValue("password")
