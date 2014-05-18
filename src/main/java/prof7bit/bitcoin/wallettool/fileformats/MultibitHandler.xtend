@@ -11,35 +11,32 @@ import java.io.File
 import java.io.IOException
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
-import java.net.URLEncoder
 import java.util.ArrayList
 import java.util.Hashtable
 import java.util.List
 import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.params.KeyParameter
-import prof7bit.bitcoin.wallettool.ImportExportStrategy
-import prof7bit.bitcoin.wallettool.WalletKeyTool
-
-import static extension prof7bit.bitcoin.wallettool.Ext.*
+import prof7bit.bitcoin.wallettool.core.WalletKeyTool
+import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
+import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 
 /**
  * Load and save keys in MultiBit wallet format
  */
-class MultibitStrategy extends ImportExportStrategy {
+class MultibitHandler extends AbstractImportExportHandler {
     val log = LoggerFactory.getLogger(this.class)
 
-    override load(File file, String pass) throws Exception {
-        log.debug("loading wallet file: " + file.path)
+    override load(File file, String pass, String pass2) throws Exception {
         var KeyParameter aesKey = null
         val wallet = Wallet.loadFromFile(file)
-        log.info("MultiBit wallet with {} addresses has been loaded",
+        log.debug("MultiBit wallet with {} addresses has been loaded",
             wallet.keychain.length
         )
         getWalletKeyTool.params = wallet.networkParameters
         if (wallet.encrypted) {
             log.debug("wallet is encrypted")
             if (pass == null){
-                throw new Exception("need password")
+                throw new FormatFoundNeedPasswordException
             }else{
                 aesKey = wallet.keyCrypter.deriveKey(pass)
             }
@@ -68,16 +65,16 @@ class MultibitStrategy extends ImportExportStrategy {
                             }
                         }
                         watch_only_key.creationTimeSeconds = ecKey.creationTimeSeconds
-                        getWalletKeyTool.add(watch_only_key)
+                        walletKeyTool.add(watch_only_key)
                     }
                 } else {
                     val watch_only_key = new ECKey(null, ecKey.pubKey)
                     watch_only_key.creationTimeSeconds = ecKey.creationTimeSeconds
                     log.info("importing {} as WATCH ONLY", addrStr)
-                    getWalletKeyTool.add(watch_only_key)
+                    walletKeyTool.add(watch_only_key)
                 }
             } else {
-                getWalletKeyTool.add(ecKey)
+                walletKeyTool.add(ecKey)
             }
             count = count + 1
         }
@@ -85,9 +82,10 @@ class MultibitStrategy extends ImportExportStrategy {
         // read the labels from the .info file
         val info = new MultibitInfo(file, walletKeyTool)
         info.readLabels
+        log.debug("done")
     }
 
-    override save(File file, String passphrase) throws Exception {
+    override save(File file, String passphrase, String pass2) throws Exception {
         val wallet = new Wallet(getWalletKeyTool.getParams)
 
         var KeyParameter aesKey = null
@@ -157,6 +155,7 @@ class MultibitInfo {
     }
 
     def readLabels() {
+        log.debug("reading Multibit .info file: " + infofile.path)
         readInfoFile()
         for (key : walletKeyTool){
             val label = list.get(key.addrStr)
@@ -167,6 +166,7 @@ class MultibitInfo {
     }
 
     def writeLabels(){
+        log.debug("writing Multibit .info file: " + infofile.path)
         val List<String> lines = new ArrayList
         val LS = System.getProperty("line.separator")
         lines.add("multiBit.info,1")
@@ -174,7 +174,7 @@ class MultibitInfo {
         for (key : walletKeyTool){
             try {
                 lines.add(String.format("receive,%s,%s",
-                    key.addrStr, URLEncoder.encode(key.label, Charsets.UTF_8.name)
+                    key.addrStr, key.label.urlencode
                 ))
             } catch (UnsupportedEncodingException exc) {
                 lines.add(String.format("receive,%s,unknown", key.addrStr))

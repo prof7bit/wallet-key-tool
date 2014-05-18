@@ -23,23 +23,21 @@ import org.spongycastle.crypto.generators.OpenSSLPBEParametersGenerator
 import org.spongycastle.crypto.modes.CBCBlockCipher
 import org.spongycastle.crypto.paddings.PaddedBufferedBlockCipher
 import org.spongycastle.util.encoders.Base64
-import prof7bit.bitcoin.wallettool.ImportExportStrategy
-import prof7bit.bitcoin.wallettool.KeyObject
-
-import static extension prof7bit.bitcoin.wallettool.Ext.*
+import prof7bit.bitcoin.wallettool.core.KeyObject
+import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 
 /**
  * read and write Bitcoin-Qt "dumpwallet" format or
  * Multibit backup file (*.key) or Schildbach backup
  */
-class WalletDumpStrategy  extends ImportExportStrategy {
+class WalletDumpHandler  extends AbstractImportExportHandler {
     val log = LoggerFactory.getLogger(this.class)
     val LS = System.getProperty("line.separator")
     val formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'") => [
         timeZone = TimeZone.getTimeZone("GMT")
     ]
 
-    override load(File file, String pass) throws Exception {
+    override load(File file, String pass, String pass2) throws Exception {
         log.debug("trying to read file: " + file.path)
         if (pass == null){
             readUnencrypted(file)
@@ -49,7 +47,7 @@ class WalletDumpStrategy  extends ImportExportStrategy {
         log.info("import succeeded")
     }
 
-    override save(File file, String pass) throws Exception {
+    override save(File file, String pass, String pass2) throws Exception {
         val lines = formatLines
         val crypter = new MultibitBackupCrypter
         if (pass.length > 0){

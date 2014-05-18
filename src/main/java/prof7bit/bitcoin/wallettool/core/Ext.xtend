@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool
+package prof7bit.bitcoin.wallettool.core
 
 import com.google.common.base.Charsets
 import java.net.URLEncoder

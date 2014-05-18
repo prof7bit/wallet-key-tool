@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool.ui.swing
+package prof7bit.bitcoin.wallettool.ui.swing.core
 
 import java.awt.Dimension
 import javax.swing.JFrame

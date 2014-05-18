@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool
+package prof7bit.bitcoin.wallettool.core
 
 import com.google.bitcoin.core.ECKey
 import com.google.bitcoin.core.NetworkParameters
@@ -9,9 +9,11 @@ import java.util.Date
 import java.util.Iterator
 import java.util.List
 import org.slf4j.LoggerFactory
-import prof7bit.bitcoin.wallettool.fileformats.BlockchainInfoStrategy
-import prof7bit.bitcoin.wallettool.fileformats.WalletDumpStrategy
-import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
+import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
+import prof7bit.bitcoin.wallettool.fileformats.AbstractImportExportHandler
+import prof7bit.bitcoin.wallettool.fileformats.BlockchainInfoHandler
+import prof7bit.bitcoin.wallettool.fileformats.MultibitHandler
+import prof7bit.bitcoin.wallettool.fileformats.WalletDumpHandler
 
 class WalletKeyTool implements Iterable<KeyObject> {
     val log = LoggerFactory.getLogger(this.class)
@@ -23,7 +25,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
     @Property var NetworkParameters params = null
     private var List<KeyObject> keys = new ArrayList
 
-    var ImportExportStrategy importExportStrategy
+    var AbstractImportExportHandler importExportStrategy
 
     def prompt(String msg){
         promptFunc.apply(msg)
@@ -45,43 +47,67 @@ class WalletKeyTool implements Iterable<KeyObject> {
         reportProgressFunc.apply(percent, status)
     }
 
-    def void setImportExportStrategy(Class<? extends ImportExportStrategy> strat) throws InstantiationException, IllegalAccessException {
-        importExportStrategy = strat.newInstance
+    def void setImportExportStrategy(Class<? extends AbstractImportExportHandler> strat) {
+        try {
+            importExportStrategy = strat.newInstance
+        } catch (Exception e) {
+            // WTF? This is impossible!
+            throw new RuntimeException("you just found a bug, please report it", e)
+        }
         importExportStrategy.walletKeyTool = this
     }
 
-    def load(File file, String pass) throws Exception {
+    def probeAllFormats(File file, String pass){
+        val int[] result = #[0]
         val strategies = #[
-            WalletDumpStrategy,
-            MultibitStrategy,
-            BlockchainInfoStrategy
+            WalletDumpHandler,
+            MultibitHandler,
+            BlockchainInfoHandler
         ]
+        strategies.findFirst[
+            result.set(0, tryLoadWithStrategy(file, pass, it))
+            return result.get(0) != IMPORT_FORMAT_WRONG
+        ]
+        return result.get(0)
+    }
 
-        for (strat : strategies){
-            if (tryLoadWithStrategy(file, null, strat)){
-                notifyChange
-                return
-            }
+    def load(File file, String pass) throws Exception {
+        var found = false
+
+        // first try them all in unencrypted mode (pass==null)
+        // if one of them succeeds then we are done already.
+        if (probeAllFormats(file, null) == IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD){
+            found = true
         }
 
         var password = pass
         if (password == null){
-            password = prompt("none of the unencrypted strategies succeeded,\nwe might need a password")
+            if (found){
+                password = prompt(importExportStrategy.class.simpleName + " needs the password")
+            } else {
+                password = prompt("none of the unencrypted strategies succeeded,\nwe might need a password")
+            }
         }
         if (password == null || password.length == 0){
             throw new Exception("import canceled")
         }
 
-        for (strat : strategies){
-            if (tryLoadWithStrategy(file, password, strat)){
-                notifyChange
+        if (found){
+            importExportStrategy.load(file, password, null)
+            return
+        } else {
+            if (probeAllFormats(file, pass) == IMPORT_SUCCESS){
                 return
             }
         }
         throw new Exception("import failed, none of the strategies worked. See log level TRACE for details")
     }
 
-    def tryLoadWithStrategy(File file, String pass, Class<? extends ImportExportStrategy> strat)throws InstantiationException, IllegalAccessException {
+    val IMPORT_SUCCESS = 0
+    val IMPORT_FORMAT_WRONG = 1
+    val IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD = 2
+
+    def tryLoadWithStrategy(File file, String pass, Class<? extends AbstractImportExportHandler> strat) {
         setImportExportStrategy(strat)
         if (pass == null){
             log.info("trying import strategy " + strat.simpleName)
@@ -89,19 +115,22 @@ class WalletKeyTool implements Iterable<KeyObject> {
             log.info("trying encrypted import strategy " + strat.simpleName)
         }
         try {
-            importExportStrategy.load(file, pass)
+            importExportStrategy.load(file, pass, null)
             log.info(strat.simpleName + " succeeded!")
-            return true
+            return IMPORT_SUCCESS
+        } catch (FormatFoundNeedPasswordException e) {
+            log.info(strat.simpleName + " said it knows this file type but needs a password")
+            return IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD
         } catch (Exception e) {
             log.info(strat.simpleName + " said: " + e.message)
             log.trace("attempt to use " + strat.simpleName + " failed", e)
-            return false
+            return IMPORT_FORMAT_WRONG
         }
     }
 
-    def save(File file, String pass, Class<? extends ImportExportStrategy> strat) throws Exception {
+    def save(File file, String pass, Class<? extends AbstractImportExportHandler> strat) throws Exception {
         setImportExportStrategy(strat)
-        importExportStrategy.save(file, pass)
+        importExportStrategy.save(file, pass, null)
     }
 
     def add(KeyObject key){

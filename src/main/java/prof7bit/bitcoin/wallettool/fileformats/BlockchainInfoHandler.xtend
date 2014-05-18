@@ -19,15 +19,14 @@ import org.spongycastle.crypto.paddings.ISO10126d2Padding
 import org.spongycastle.crypto.paddings.PaddedBufferedBlockCipher
 import org.spongycastle.crypto.params.ParametersWithIV
 import org.spongycastle.util.encoders.Base64
-import prof7bit.bitcoin.wallettool.ImportExportStrategy
-import prof7bit.bitcoin.wallettool.KeyObject
+import prof7bit.bitcoin.wallettool.core.KeyObject
 
 /**
  * Strategy to handle the blockchain.info
  * "My Wallet" backup file format (*.aes.json)
  */
-class BlockchainInfoStrategy extends ImportExportStrategy{
-    private static final Logger log = LoggerFactory.getLogger(BlockchainInfoStrategy);
+class BlockchainInfoHandler extends AbstractImportExportHandler{
+    private static final Logger log = LoggerFactory.getLogger(BlockchainInfoHandler);
 
     static val AESBlockSize = 16
     static val AESKeySize = 256
@@ -41,7 +40,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
      * @throws Exception if import fails containing a human readable and comprehensible
      * error message explaining what happened (message string will be presented to the user)
      */
-    override load(File file, String pass) throws Exception {
+    override load(File file, String pass, String pass2) throws Exception {
 
         val fileContents = Files.toString(file, Charsets.UTF_8)
 
@@ -157,7 +156,7 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
     }
 
 
-    override save(File file, String pass) throws Exception {
+    override save(File file, String pass, String pass2) throws Exception {
         throw new UnsupportedOperationException("blockchain.info export is not yet implemented")
     }
 

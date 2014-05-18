@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool
+package prof7bit.bitcoin.wallettool.core
 
 import java.io.BufferedReader
 import java.io.IOException
@@ -6,8 +6,7 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import org.slf4j.LoggerFactory
-
-import static extension prof7bit.bitcoin.wallettool.Ext.*
+import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 
 class RemoteAddressInfo {
     static val SERVER = "http://blockchain.info"

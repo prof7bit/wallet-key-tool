@@ -1,11 +1,11 @@
-package prof7bit.bitcoin.wallettool.ui.swing
+package prof7bit.bitcoin.wallettool.ui.swing.core
 
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.TimeZone
-import javax.swing.table.AbstractTableModel
-import prof7bit.bitcoin.wallettool.WalletKeyTool
 import javax.swing.SwingUtilities
+import javax.swing.table.AbstractTableModel
+import prof7bit.bitcoin.wallettool.core.WalletKeyTool
 
 class WalletTableModel extends AbstractTableModel {
     var WalletKeyTool kt;

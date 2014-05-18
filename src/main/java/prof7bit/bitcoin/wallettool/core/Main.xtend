@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool
+package prof7bit.bitcoin.wallettool.core
 
 import java.io.BufferedReader
 import java.io.File
@@ -9,9 +9,9 @@ import org.apache.commons.cli.GnuParser
 import org.apache.commons.cli.Options
 import org.apache.commons.cli.ParseException
 import org.slf4j.LoggerFactory
-import prof7bit.bitcoin.wallettool.ui.swing.SwingMain
+import prof7bit.bitcoin.wallettool.ui.swing.core.SwingMain
 
-import static extension prof7bit.bitcoin.wallettool.Ext.*
+import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 
 static class Main {
     static val log = LoggerFactory.getLogger(Main)

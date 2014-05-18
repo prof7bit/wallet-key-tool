@@ -1,4 +1,4 @@
-package prof7bit.bitcoin.wallettool.ui.swing
+package prof7bit.bitcoin.wallettool.ui.swing.core
 
 import java.awt.Cursor
 import java.awt.Dimension
@@ -6,7 +6,6 @@ import java.awt.Frame
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.io.File
-import java.util.List
 import javax.swing.JButton
 import javax.swing.JFileChooser
 import javax.swing.JLabel
@@ -23,15 +22,15 @@ import javax.swing.border.BevelBorder
 import javax.swing.filechooser.FileNameExtensionFilter
 import net.miginfocom.swing.MigLayout
 import org.slf4j.LoggerFactory
-import prof7bit.bitcoin.wallettool.ImportExportStrategy
-import prof7bit.bitcoin.wallettool.WalletKeyTool
-import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
-import prof7bit.bitcoin.wallettool.fileformats.WalletDumpStrategy
+import prof7bit.bitcoin.wallettool.core.WalletKeyTool
+import prof7bit.bitcoin.wallettool.fileformats.AbstractImportExportHandler
+import prof7bit.bitcoin.wallettool.fileformats.MultibitHandler
+import prof7bit.bitcoin.wallettool.fileformats.WalletDumpHandler
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.MouseDownListener
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.ResizeListener
 import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
 
-import static extension prof7bit.bitcoin.wallettool.Ext.*
+import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 
 class WalletPanel extends JPanel{
     val log = LoggerFactory.getLogger(this.class)
@@ -219,7 +218,7 @@ class WalletPanel extends JPanel{
             var FileNameExtensionFilter filter
             var String filterExt
             var askPassword = true
-            var Class<? extends ImportExportStrategy> strategy = null
+            var Class<? extends AbstractImportExportHandler> strategy = null
 
             // we repeat the file dialog until we have a valid
             // file name or until the user clicks cancel.
@@ -237,9 +236,9 @@ class WalletPanel extends JPanel{
                         alert("can not overwrite existing files. Please select a different file name")
                     } else {
                         switch(filterExt){
-                            case "key"    : strategy = WalletDumpStrategy
-                            case "txt"    : {strategy = WalletDumpStrategy; askPassword = false}
-                            case "wallet" : strategy = MultibitStrategy
+                            case "key"    : strategy = WalletDumpHandler
+                            case "txt"    : {strategy = WalletDumpHandler; askPassword = false}
+                            case "wallet" : strategy = MultibitHandler
                         }
                         repeatDialog = false
                         // here is where we exit the loop if all goes normal
@@ -369,7 +368,7 @@ class WalletPanel extends JPanel{
         if (SwingUtilities.eventDispatchThread){
             return func.apply
         } else {
-            val List<Object> ret = newArrayOfSize(1) // need a final mutable object the closure can access
+            val Object[] ret = #[null] // need a final mutable object the closure can write to
             try {
                 SwingUtilities.invokeAndWait [|
                     ret.set(0, func.apply)
