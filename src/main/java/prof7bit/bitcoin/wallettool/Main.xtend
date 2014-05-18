@@ -18,6 +18,7 @@ static class Main {
 
     static val consolePromptFunc = [
         val br = new BufferedReader(new InputStreamReader(System.in))
+        clearLine
         print(it + ": ")
         try {
             br.readLine
@@ -28,14 +29,33 @@ static class Main {
     ]
 
     static val consoleConfirmFunc = [
+        clearLine
         val answer = consolePromptFunc.apply(it + " [y/n]")
         return (answer == "y" || answer == "")
     ]
 
+    static val consoleProgressFunc = [int percent, String status|
+        val prog1 = "###############"
+        val prog2 = "---------------"
+        val part1 = prog1.substring((100-percent) * prog1.length / 100)
+        val part2 = prog2.substring(part1.length)
+        val status_s = status.substring(0, Math.min(status.length, 60))
+        val line = part1 + part2 + " " + status_s + "\r"
+        clearLine
+        print(line)
+        return
+    ]
+
     static val consoleAlertFunc = [
+        clearLine
         println(it)
         return
     ]
+
+    static def clearLine(){
+        // 79 spaces
+        print("\r                                                                               \r")
+    }
 
     static def void main(String[] args) {
         try{
@@ -58,6 +78,7 @@ static class Main {
             promptFunc = consolePromptFunc
             alertFunc = consoleAlertFunc
             yesNoFunc = consoleConfirmFunc
+            reportProgressFunc = consoleProgressFunc
             try {
                 load(new File(filename), pass)
                 dumpToConsole
