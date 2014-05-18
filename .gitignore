@@ -8,3 +8,4 @@ xtend-gen/
 *.settings
 .DS_Store
 
+/.README.md.html
