@@ -20,6 +20,8 @@ import org.spongycastle.crypto.paddings.PaddedBufferedBlockCipher
 import org.spongycastle.crypto.params.ParametersWithIV
 import org.spongycastle.util.encoders.Base64
 import prof7bit.bitcoin.wallettool.core.KeyObject
+import prof7bit.bitcoin.wallettool.exceptions.NeedSecondaryPasswordException
+import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
 
 /**
  * Strategy to handle the blockchain.info
@@ -54,33 +56,22 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
             val jsonData = new JSONObject(fileContents)
             iterations = jsonData.getInt("pbkdf2_iterations")
             payload = jsonData.getString("payload")
+            if (pass == null) {
+                // this is definitely the right file format
+                // we just need to ask for a password now
+                throw new FormatFoundNeedPasswordException
+            }
         } catch (Exception e) {
             // ... then it can only be version 1
             iterations = DefaultPBKDF2Iterations
             payload = fileContents
         }
 
-        try {
-            // just in case someone has already decrypted the payload
-            // with an external tool and wants to import the plain JSON
-            parseAndImport(payload)
-        } catch (Exception e){
-            if (pass == null){
-                // if we are in phase 1 (probing for unencrypted formats) we can stop here
-                throw new Exception("does not look like unencrypted blockchain.info backup")
-            }
-
-            val decrypted = decrypt(payload, pass, iterations)
-            try {
-                parseAndImport(decrypted)
-            } catch (Exception e1) {
-                log.trace(decrypted)
-                val e2 = new Exception("Import failed: '" + e.toString + "' Use log level TRACE to see all details"
-                )
-                e2.initCause(e1)
-                throw e2
-            }
+        if (pass == null){
+            throw new Exception("not possible without password")
         }
+        val decrypted = decrypt(payload, pass, iterations)
+        parseAndImport(decrypted, pass2)
     }
 
     /**
@@ -93,24 +84,22 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
      * when the wallet has "double encryption" and the second password
      * is wrong.
      */
-    private def parseAndImport(String jsonStr) throws Exception {
+    private def parseAndImport(String jsonStr, String pass2) throws Exception {
         var int cntImported = 0
         var int cntMissing = 0
         var doubleEnc = false
         var doubleEncIter = DefaultPBKDF2Iterations
         var doubleEncSalt = ""
-        var doubleEncPass = ""
         val data = new JSONObject(jsonStr)
         if (data.has("double_encryption")){
             if (data.getBoolean("double_encryption")){
-                log.info("double encryption, need secondary password")
+                if (pass2 == null){
+                    log.info("double encryption, need secondary password")
+                    throw new NeedSecondaryPasswordException
+                }
                 doubleEnc = true
                 doubleEncSalt = data.getString("sharedKey")
                 doubleEncIter = data.getJSONObject("options").getInt("pbkdf2_iterations")
-                doubleEncPass = walletKeyTool.prompt("secondary password")
-                if (doubleEncPass == null || doubleEncPass.length == 0){
-                    throw new Exception("no password given, import canceled")
-                }
             }
         }
         val keys = data.getJSONArray("keys")
@@ -124,7 +113,7 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
             if (bciKey.has("priv")){
                 if (doubleEnc){
                     val doubleEncText = bciKey.getString("priv")
-                    priv = decrypt(doubleEncText, doubleEncSalt, doubleEncPass, doubleEncIter)
+                    priv = decrypt(doubleEncText, doubleEncSalt, pass2, doubleEncIter)
                 } else {
                     priv = bciKey.getString("priv")
                 }

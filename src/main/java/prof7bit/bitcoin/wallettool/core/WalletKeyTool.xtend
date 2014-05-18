@@ -14,6 +14,7 @@ import prof7bit.bitcoin.wallettool.fileformats.AbstractImportExportHandler
 import prof7bit.bitcoin.wallettool.fileformats.BlockchainInfoHandler
 import prof7bit.bitcoin.wallettool.fileformats.MultibitHandler
 import prof7bit.bitcoin.wallettool.fileformats.WalletDumpHandler
+import prof7bit.bitcoin.wallettool.exceptions.NeedSecondaryPasswordException
 
 class WalletKeyTool implements Iterable<KeyObject> {
     val log = LoggerFactory.getLogger(this.class)
@@ -57,7 +58,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
         importExportStrategy.walletKeyTool = this
     }
 
-    def probeAllFormats(File file, String pass){
+    def probeAllFormats(File file, String pass, String pass2){
         val int[] result = #[0]
         val strategies = #[
             WalletDumpHandler,
@@ -65,8 +66,8 @@ class WalletKeyTool implements Iterable<KeyObject> {
             BlockchainInfoHandler
         ]
         strategies.findFirst[
-            result.set(0, tryLoadWithStrategy(file, pass, it))
-            return result.get(0) != IMPORT_FORMAT_WRONG
+            result.set(0, tryLoadWithStrategy(file, pass, pass2, it as Class<AbstractImportExportHandler>))
+            return result.get(0) != IMPORT_UNREADABLE
         ]
         return result.get(0)
     }
@@ -74,12 +75,12 @@ class WalletKeyTool implements Iterable<KeyObject> {
     def load(File file, String pass) throws Exception {
         var found = false
 
-        // first try them all in unencrypted mode (pass==null)
-        // if one of them succeeds then we are done already.
-        if (probeAllFormats(file, null) == IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD){
+        log.debug("trying all formats without password")
+        if (probeAllFormats(file, null, null) == IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD){
             found = true
         }
 
+        log.debug("asking for primary password")
         var password = pass
         if (password == null){
             if (found){
@@ -92,39 +93,68 @@ class WalletKeyTool implements Iterable<KeyObject> {
             throw new Exception("import canceled")
         }
 
+        log.debug("trying import again with primary password")
+        var int result
         if (found){
-            importExportStrategy.load(file, password, null)
-            return
+            result = tryLoadWithStrategy(file, password, null, null)
         } else {
-            if (probeAllFormats(file, pass) == IMPORT_SUCCESS){
+            result = probeAllFormats(file, password, null)
+        }
+        if (result == IMPORT_SUCCESS){
+            return
+        }
+
+        if (result == IMPORT_NEED_SECONDARY_PASSWORD){
+            // this time we don't need to try any other formats,
+            // if a handler asks for second password then it
+            // is the correct and only handler for this format
+            log.debug("asking for secondary password")
+            var password2 = prompt(importExportStrategy.class.simpleName + " needs the secondary password")
+            if (password2 == null || password2.length == 0){
+                throw new Exception("import canceled")
+            }
+            log.debug("trying import again with both passwords")
+            if (tryLoadWithStrategy(file, password, password2, null) == IMPORT_SUCCESS) {
                 return
             }
         }
+
+        // still here? -> Import has failed.
         throw new Exception("import failed, none of the strategies worked. See log level TRACE for details")
     }
 
     val IMPORT_SUCCESS = 0
-    val IMPORT_FORMAT_WRONG = 1
+    val IMPORT_UNREADABLE = 1
     val IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD = 2
+    val IMPORT_NEED_SECONDARY_PASSWORD = 3
 
-    def tryLoadWithStrategy(File file, String pass, Class<? extends AbstractImportExportHandler> strat) {
-        setImportExportStrategy(strat)
+    def tryLoadWithStrategy(File file, String pass, String pass2, Class<AbstractImportExportHandler> strat) {
+        if (strat != null){
+            setImportExportStrategy(strat)
+        }
+        val stratName = importExportStrategy.class.simpleName
         if (pass == null){
-            log.info("trying import strategy " + strat.simpleName)
+            log.info("trying import strategy " + stratName)
         }else{
-            log.info("trying encrypted import strategy " + strat.simpleName)
+            log.info("trying encrypted import strategy " + stratName)
         }
         try {
-            importExportStrategy.load(file, pass, null)
-            log.info(strat.simpleName + " succeeded!")
+            importExportStrategy.load(file, pass, pass2)
+            log.info(stratName + " succeeded!")
             return IMPORT_SUCCESS
+
         } catch (FormatFoundNeedPasswordException e) {
-            log.info(strat.simpleName + " said it knows this file type but needs a password")
+            log.info(stratName + " said it knows this file type but needs a password")
             return IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD
+
+        } catch (NeedSecondaryPasswordException e) {
+            log.info(stratName + " said it needs the secondary password")
+            return IMPORT_NEED_SECONDARY_PASSWORD
+
         } catch (Exception e) {
-            log.info(strat.simpleName + " said: " + e.message)
-            log.trace("attempt to use " + strat.simpleName + " failed", e)
-            return IMPORT_FORMAT_WRONG
+            log.info(stratName + " said: " + e.message)
+            log.trace("attempt to use " + stratName + " failed", e)
+            return IMPORT_UNREADABLE
         }
     }
 

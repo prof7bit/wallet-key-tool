@@ -11,7 +11,7 @@ apply plugin: 'xtend'
 apply plugin: 'java'
 apply plugin: 'eclipse'
 
-project.ext.mainClassName = "prof7bit.bitcoin.wallettool.Main"
+project.ext.mainClassName = "prof7bit.bitcoin.wallettool.core.Main"
 
 repositories {
     mavenCentral()
