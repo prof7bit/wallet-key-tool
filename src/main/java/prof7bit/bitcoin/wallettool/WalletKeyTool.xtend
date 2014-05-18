@@ -19,6 +19,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
     @Property var (String)=>boolean YesNoFunc = []
     @Property var (String)=>void alertFunc = []
     @Property var (Object)=>void notifyChangeFunc = []
+    @Property var (int,String)=>void reportProgressFunc = [p, s|]
     @Property var NetworkParameters params = null
     private var List<KeyObject> keys = new ArrayList
 
@@ -38,6 +39,10 @@ class WalletKeyTool implements Iterable<KeyObject> {
 
     def notifyChange(){
         notifyChangeFunc.apply(null)
+    }
+
+    def reportProgress(int percent, String status){
+        reportProgressFunc.apply(percent, status)
     }
 
     def void setImportExportStrategy(Class<? extends ImportExportStrategy> strat) throws InstantiationException, IllegalAccessException {
@@ -94,8 +99,8 @@ class WalletKeyTool implements Iterable<KeyObject> {
         }
     }
 
-    def save(File file, String pass) throws Exception {
-        setImportExportStrategy(getStrategyFromFileName(file))
+    def save(File file, String pass, Class<? extends ImportExportStrategy> strat) throws Exception {
+        setImportExportStrategy(strat)
         importExportStrategy.save(file, pass)
     }
 
@@ -241,28 +246,6 @@ class WalletKeyTool implements Iterable<KeyObject> {
         if (b > -1) {
             setBalance(i, b)
             notifyChange
-        }
-    }
-
-    def Class<? extends ImportExportStrategy> getStrategyFromFileName(File file){
-        val fn = file.path
-        if (fn.endsWith(".wallet")) {
-            return MultibitStrategy
-        } else if (fn.endsWith(".key")) {
-            return WalletDumpStrategy
-        } else if (fn.endsWith(".json")) {
-            return BlockchainInfoStrategy
-        } else {
-            throw new RuntimeException("not a supported wallet file format")
-        }
-    }
-
-    def hasStrategyForFileType(File file){
-        try {
-            getStrategyFromFileName(file)
-            return true
-        } catch (Exception e) {
-            return false
         }
     }
 

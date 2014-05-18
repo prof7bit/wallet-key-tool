@@ -1,24 +1,32 @@
 package prof7bit.bitcoin.wallettool.ui.swing
 
-import com.google.common.io.Files
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Frame
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.io.File
+import java.util.List
 import javax.swing.JButton
 import javax.swing.JFileChooser
+import javax.swing.JLabel
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JPopupMenu
+import javax.swing.JProgressBar
 import javax.swing.JScrollPane
 import javax.swing.JTable
 import javax.swing.ScrollPaneConstants
+import javax.swing.SwingUtilities
+import javax.swing.border.BevelBorder
 import javax.swing.filechooser.FileNameExtensionFilter
 import net.miginfocom.swing.MigLayout
 import org.slf4j.LoggerFactory
+import prof7bit.bitcoin.wallettool.ImportExportStrategy
 import prof7bit.bitcoin.wallettool.WalletKeyTool
+import prof7bit.bitcoin.wallettool.fileformats.MultibitStrategy
+import prof7bit.bitcoin.wallettool.fileformats.WalletDumpStrategy
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.MouseDownListener
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.ResizeListener
 import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
@@ -33,27 +41,20 @@ class WalletPanel extends JPanel{
         promptFunc = [prompt(it)]
         alertFunc = [alert(it)]
         yesNoFunc = [confirm(it)]
+        reportProgressFunc = [p, s | onProgress(p, s)]
     ]
     @Property var WalletKeyTool otherKeyTool = null
     @Property var String otherName = ""
 
     val btn_load = new JButton("load...") => [
         addActionListener [
-            try {
-                loadWallet()
-            } catch (Exception e) {
-                log.stacktrace(e)
-            }
+            loadWallet
         ]
     ]
 
     val btn_save = new JButton("save as...") => [
         addActionListener [
-            try {
-                saveWallet()
-            } catch (Exception e) {
-                log.stacktrace(e)
-            }
+            saveWallet
         ]
     ]
 
@@ -158,11 +159,31 @@ class WalletPanel extends JPanel{
         adjustColumns
     ]
 
-    val fc = new JFileChooser => [
+    val file_open = new JFileChooser => [
         addChoosableFileFilter(new FileNameExtensionFilter("Blockchain.info backup (*.aes.json)", "json"))
         addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
         preferredSize = new Dimension(600, 500)
+    ]
+
+    val file_save = new JFileChooser => [
+        setAcceptAllFileFilterUsed(false)
+        addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
+        addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
+        setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
+        preferredSize = new Dimension(600, 500)
+    ]
+
+    val status_label = new JLabel("ready")
+    val progress_bar = new JProgressBar => [
+        minimum = 0
+        maximum = 100
+    ]
+    val JPanel status_bar = new JPanel => [
+        setBorder(new BevelBorder(BevelBorder.LOWERED))
+        layout = new MigLayout("fill")
+        add(progress_bar)
+        add(status_label, "push, grow")
     ]
 
     new(Frame parentFrame) {
@@ -179,6 +200,7 @@ class WalletPanel extends JPanel{
         tablePane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
         table.fillsViewportHeight = true
         add(tablePane, "spanx, grow, push")
+        add(status_bar, "dock south")
         visible = true
     }
 
@@ -194,52 +216,68 @@ class WalletPanel extends JPanel{
             alert("Wallet is empty, nothing to save")
         } else {
             var File file
+            var FileNameExtensionFilter filter
             var String filterExt
-            var exitLoop = false
-            while (!exitLoop) {
-                //val fd = new FileDialogEx(parentFrame, "select wallet file");
-                //fd.setFileFilters
-                if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-                    // FIXME: don't allow overwriting of old wallet
-                    file = fc.selectedFile
-                    if (fc.fileFilter.class.equals(FileNameExtensionFilter)) {
-                        filterExt = (fc.fileFilter as FileNameExtensionFilter).extensions.get(0)
-                        if (!file.path.endsWith("." + filterExt)){
-                            file = new File(file.path + "." + filterExt)
-                        }
+            var askPassword = true
+            var Class<? extends ImportExportStrategy> strategy = null
+
+            // we repeat the file dialog until we have a valid
+            // file name or until the user clicks cancel.
+            var repeatDialog = true
+            while (repeatDialog) {
+                if (file_save.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+                    file = file_save.selectedFile
+                    filter = file_save.fileFilter as FileNameExtensionFilter
+                    filterExt = filter.extensions.get(0)
+                    if (!filter.accept(file)){
+                        file = new File(file.path + "." + filterExt)
                     }
+
                     if (file.exists){
                         alert("can not overwrite existing files. Please select a different file name")
-                    }else{
-                        if (!keyTool.hasStrategyForFileType(file)){
-                            val ext = Files.getFileExtension(file.path)
-                            alert(String.format("unknown file type: *.%s", ext))
-                        }else{
-                            exitLoop = true
+                    } else {
+                        switch(filterExt){
+                            case "key"    : strategy = WalletDumpStrategy
+                            case "txt"    : {strategy = WalletDumpStrategy; askPassword = false}
+                            case "wallet" : strategy = MultibitStrategy
                         }
+                        repeatDialog = false
+                        // here is where we exit the loop if all goes normal
                     }
-                } else {
-                    // file dialog exited with cancel
-                    exitLoop = true
+                } else { // file dialog exited with cancel
+                    repeatDialog = false
                     file = null
                 }
             }
 
             if (file != null) {
-                keyTool.getStrategyFromFileName(file)
-                val pass = askPassTwice
+                var String pass = ""
+                if (askPassword){
+                    pass = askPassTwice
+                    // ""   = save unencrypted
+                    // null = cancel
+                }
+
                 if (pass != null){
-                    try {
-                       keyTool.save(file, pass)
-                    } catch (Exception e) {
-                       log.stacktrace(e)
-                       alert(e.message)
-                    }
+                    val ffile = file
+                    val fpass = pass
+                    val fstrategy = strategy
+                    new Thread([|
+                        try {
+                           keyTool.save(ffile, fpass, fstrategy)
+                        } catch (Exception e) {
+                           log.stacktrace(e)
+                           alert(e.message)
+                        } finally {
+                            SwingUtilities.invokeLater [|
+                                onProgress(100, "")
+                                keyTool.notifyChange
+                            ]
+                        }
+                    ]).start
                 }else{
                     log.debug("password dialog canceled")
                 }
-            } else {
-                log.debug("file dialog canceled")
             }
         }
     }
@@ -247,27 +285,33 @@ class WalletPanel extends JPanel{
     def loadWallet() {
         //val fd = new FileDialogEx(parentFrame, "select wallet file")
         //fd.setFileFilters
-        if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            try {
-                keyTool.load(fc.selectedFile, null)
-            } catch (Exception e) {
-                log.stacktrace(e)
-                alert(e.message)
-            }
+        if (file_open.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            new Thread([|
+                try {
+                    keyTool.load(file_open.selectedFile, null)
+                } catch (Exception e) {
+                    log.stacktrace(e)
+                    alert(e.message)
+                } finally {
+                    SwingUtilities.invokeLater [|
+                        onProgress(100, "")
+                        keyTool.notifyChange
+                    ]
+                }
+            ]).start
         }
     }
 
-    def prompt(String msg) {
-        JOptionPane.showInputDialog(this, msg)
-    }
-
-    def alert(String msg) {
-        JOptionPane.showMessageDialog(this, msg)
-    }
-
-    def confirm(String msg){
-        val answer = JOptionPane.showConfirmDialog(this, msg, null, JOptionPane.YES_NO_OPTION)
-        return answer == JOptionPane.YES_OPTION
+    def onProgress(int percent, String status){
+        if (percent < 100){
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR))
+            progress_bar.setValue(percent)
+            status_label.text = status
+        } else {
+            setCursor(Cursor.getDefaultCursor())
+            progress_bar.value = 0
+            status_label.text = "ready"
+        }
     }
 
     /**
@@ -296,6 +340,45 @@ class WalletPanel extends JPanel{
                     }
                 }
             }
+        }
+    }
+
+    def prompt(String msg) {
+        callOnMainThread([|
+            status_label.text = "waiting for user interaction"
+            JOptionPane.showInputDialog(this, msg)
+        ]) as String
+    }
+
+    def alert(String msg) {
+        callOnMainThread([|
+            status_label.text = "waiting for user interaction"
+            JOptionPane.showMessageDialog(this, msg)
+            return null
+        ])
+    }
+
+    def confirm(String msg){
+        callOnMainThread([|
+            status_label.text = "waiting for user interaction"
+            JOptionPane.showConfirmDialog(this, msg, null, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION
+        ]) as Boolean
+    }
+
+    def callOnMainThread(()=>Object func){
+        if (SwingUtilities.eventDispatchThread){
+            return func.apply
+        } else {
+            val List<Object> ret = newArrayOfSize(1) // need a final mutable object the closure can access
+            try {
+                SwingUtilities.invokeAndWait [|
+                    ret.set(0, func.apply)
+                ]
+            } catch (Exception e) {
+                log.stacktrace(e)
+                ret.set(0, null)
+            }
+            return ret.get(0)
         }
     }
 }

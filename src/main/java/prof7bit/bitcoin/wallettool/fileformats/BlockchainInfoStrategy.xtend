@@ -115,7 +115,9 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
             }
         }
         val keys = data.getJSONArray("keys")
-        for (i : 0..<keys.length){
+        var total = keys.length
+        var count = 0
+        for (i : 0..<total){
             val bciKey = keys.getJSONObject(i)
             var String priv = null
             var ECKey ecKey = null
@@ -146,6 +148,8 @@ class BlockchainInfoStrategy extends ImportExportStrategy{
                 log.info("skipped {} because it is watch only", addr)
                 cntMissing = cntMissing + 1
             }
+            walletKeyTool.reportProgress(100 * count / total, addr)
+            count = count + 1
         }
         log.info("import complete: {} keys imported, {} skipped because keys were missing",
             cntImported, cntMissing

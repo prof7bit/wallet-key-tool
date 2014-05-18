@@ -46,16 +46,19 @@ class MultibitStrategy extends ImportExportStrategy {
         }
 
         var allowFailed = false
-        for (key : wallet.keychain){
-            if (key.encrypted){
+        var count = 0
+        for (ecKey : wallet.keychain){
+            val addrStr = ecKey.toAddress(wallet.networkParameters).toString
+            walletKeyTool.reportProgress(100 * count / wallet.keychain.length, addrStr)
+            if (ecKey.encrypted){
                 if (aesKey != null) {
                     try {
-                        getWalletKeyTool.add(key.decrypt(wallet.keyCrypter, aesKey))
+                        walletKeyTool.add(ecKey.decrypt(wallet.keyCrypter, aesKey))
                     } catch (KeyCrypterException e) {
-                        val watch_only_key = new ECKey(null, key.pubKey)
+                        val watch_only_key = new ECKey(null, ecKey.pubKey)
                         log.error("DECRYPT ERROR: {} {}",
-                            key.toAddress(getWalletKeyTool.getParams).toString,
-                            key.encryptedPrivateKey.toString
+                            addrStr,
+                            ecKey.encryptedPrivateKey.toString
                         )
                         if (!allowFailed){
                             if (getWalletKeyTool.confirm("decryption error, continue?")){
@@ -64,18 +67,19 @@ class MultibitStrategy extends ImportExportStrategy {
                                 throw new Exception("decryption failed")
                             }
                         }
-                        watch_only_key.creationTimeSeconds = key.creationTimeSeconds
+                        watch_only_key.creationTimeSeconds = ecKey.creationTimeSeconds
                         getWalletKeyTool.add(watch_only_key)
                     }
                 } else {
-                    val watch_only_key = new ECKey(null, key.pubKey)
-                    watch_only_key.creationTimeSeconds = key.creationTimeSeconds
-                    log.info("importing {} as WATCH ONLY", watch_only_key.toAddress(wallet.params))
+                    val watch_only_key = new ECKey(null, ecKey.pubKey)
+                    watch_only_key.creationTimeSeconds = ecKey.creationTimeSeconds
+                    log.info("importing {} as WATCH ONLY", addrStr)
                     getWalletKeyTool.add(watch_only_key)
                 }
             } else {
-                getWalletKeyTool.add(key)
+                getWalletKeyTool.add(ecKey)
             }
+            count = count + 1
         }
 
         // read the labels from the .info file
@@ -85,22 +89,32 @@ class MultibitStrategy extends ImportExportStrategy {
 
     override save(File file, String passphrase) throws Exception {
         val wallet = new Wallet(getWalletKeyTool.getParams)
+
+        var KeyParameter aesKey = null
+        if (passphrase.length > 0){
+            wallet.keyCrypter = new KeyCrypterScrypt
+            aesKey = wallet.keyCrypter.deriveKey(passphrase)
+        }
+
+        val total = walletKeyTool.keyCount
+        var count = 0
         for (key : getWalletKeyTool){
+            val addr = key.addrStr
+            val ecKey = key.ecKey
+            walletKeyTool.reportProgress(100 * count / total, addr)
             if (key.hasPrivKey) {
-                wallet.addKey(key.getEcKey)
+                if (aesKey != null){
+                    wallet.addKey(ecKey.encrypt(wallet.keyCrypter, aesKey))
+                } else {
+                    wallet.addKey(ecKey)
+                }
             } else {
-                wallet.addWatchedAddress(key.getEcKey.toAddress(key.getParams), key.getCreationTimeSeconds)
-                log.error("set {} as WATCH ONLY because private key is missing",
-                    key.getAddrStr
-                )
+                wallet.addWatchedAddress(ecKey.toAddress(key.getParams), key.getCreationTimeSeconds)
+                log.error("set {} as WATCH ONLY because private key is missing", addr)
             }
+            count = count + 1
         }
         if (wallet.keychain.length + wallet.watchedScripts.length > 0){
-            if (passphrase.length > 0){
-                val scrypt = new KeyCrypterScrypt
-                val aesKey = scrypt.deriveKey(passphrase)
-                wallet.encrypt(scrypt, aesKey)
-            }
             wallet.setDescription("created by wallet-key-tool")
             wallet.setLastBlockSeenHeight(0)
             wallet.saveToFile(file)

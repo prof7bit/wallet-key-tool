@@ -53,6 +53,7 @@ class WalletDumpStrategy  extends ImportExportStrategy {
         val lines = formatLines
         val crypter = new MultibitBackupCrypter
         if (pass.length > 0){
+            walletKeyTool.reportProgress(99, "encrypting")
             val encrypted = crypter.encrypt(lines, pass)
             Files.write(encrypted, file, Charsets.UTF_8)
             log.info("encrypted wallet dump file written to {}", file.path)
@@ -86,6 +87,9 @@ class WalletDumpStrategy  extends ImportExportStrategy {
 
     private def readLines(Reader r) throws Exception {
         val lines = CharStreams.readLines(r)
+        if (lines.length == 0){
+            throw new Exception("file does not contain any lines")
+        }
         var count = 0
         for (line : lines){
             if (!line.startsWith("#")){
@@ -114,6 +118,7 @@ class WalletDumpStrategy  extends ImportExportStrategy {
                     }
 
                     log.debug("importing {}", key.addrStr)
+                    walletKeyTool.reportProgress(100 * count / lines.length, key.addrStr)
                     walletKeyTool.add(key)
                     count = count + 1
                 }
@@ -128,12 +133,16 @@ class WalletDumpStrategy  extends ImportExportStrategy {
         val List<String> lines = new ArrayList
         lines.add("# Wallet dump created by prof7bit/wallet-key-tool")
         lines.add("# * Created on " + formatter.format(new Date()))
+        lines.add("")
+        var count = 0
+        var total = walletKeyTool.keyCount
         for (key : walletKeyTool) {
             var line = key.privKeyStr + " " + formatter.format(new Date(key.creationTimeSeconds * 1000L))
             if (key.label != ""){
                 line = line + " label=" + key.label.urlencode
             }
             line = line + " # " + key.addrStr
+            walletKeyTool.reportProgress(100 * count / total, key.addrStr)
             lines.add(line)
         }
         return Joiner.on(LS).join(lines)

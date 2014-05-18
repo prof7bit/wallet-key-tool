@@ -5,6 +5,7 @@ import java.util.Date
 import java.util.TimeZone
 import javax.swing.table.AbstractTableModel
 import prof7bit.bitcoin.wallettool.WalletKeyTool
+import javax.swing.SwingUtilities
 
 class WalletTableModel extends AbstractTableModel {
     var WalletKeyTool kt;
@@ -16,7 +17,11 @@ class WalletTableModel extends AbstractTableModel {
     new(WalletKeyTool kt) {
         this.kt = kt
         kt.notifyChangeFunc = [
-            fireTableDataChanged
+            // don't fire thousands of table updates while
+            // the importer thread is adding keys to the list
+            if (SwingUtilities.eventDispatchThread){
+                fireTableDataChanged
+            }
         ]
     }
 
