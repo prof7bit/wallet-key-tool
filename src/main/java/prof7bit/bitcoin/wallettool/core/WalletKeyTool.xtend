@@ -81,7 +81,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
      */
     def load(File file, String pass, String pass2) throws Exception {
         var password1 = pass
-        var password2 = pass
+        var password2 = pass2
         var tryAll = true
 
         // there are 3 exits from this loop:
