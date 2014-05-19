@@ -15,6 +15,7 @@ import prof7bit.bitcoin.wallettool.fileformats.BlockchainInfoHandler
 import prof7bit.bitcoin.wallettool.fileformats.MultibitHandler
 import prof7bit.bitcoin.wallettool.fileformats.WalletDumpHandler
 import prof7bit.bitcoin.wallettool.exceptions.NeedSecondaryPasswordException
+import prof7bit.bitcoin.wallettool.fileformats.WalletDatHandler
 
 class WalletKeyTool implements Iterable<KeyObject> {
     val log = LoggerFactory.getLogger(this.class)
@@ -139,7 +140,8 @@ class WalletKeyTool implements Iterable<KeyObject> {
         val strategies = #[
             WalletDumpHandler,
             MultibitHandler,
-            BlockchainInfoHandler
+            BlockchainInfoHandler,
+            WalletDatHandler
         ]
         strategies.findFirst[
             result.set(0, tryLoadWithStrategy(file, pass, pass2, it as Class<AbstractImportExportHandler>))
