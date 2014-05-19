@@ -180,7 +180,7 @@ class WalletPanel extends JPanel{
     ]
     val JPanel status_bar = new JPanel => [
         setBorder(new BevelBorder(BevelBorder.LOWERED))
-        layout = new MigLayout("fill")
+        layout = new MigLayout("fill", "0[]0", "0[]0")
         add(progress_bar)
         add(status_label, "push, grow")
     ]
