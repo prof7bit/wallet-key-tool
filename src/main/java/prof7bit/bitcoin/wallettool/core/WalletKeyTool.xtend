@@ -58,7 +58,83 @@ class WalletKeyTool implements Iterable<KeyObject> {
         importExportStrategy.walletKeyTool = this
     }
 
-    def probeAllFormats(File file, String pass, String pass2){
+    private val IMPORT_SUCCESS = 0
+    private val IMPORT_UNREADABLE = 1
+    private val IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD = 2
+    private val IMPORT_NEED_SECONDARY_PASSWORD = 3
+
+    /**
+     * Try to load with all of the existing handlers. The function will attempt to determine
+     * automatically which file type this is and which handler to use. It works in several
+     * phases, first it will try all handlers without password, then ask for password and try
+     * them all again. There is a shortcut: If in the first round a handler returns that it can
+     * identify this format and just needs a password then only this handler will be tried again
+     * in subsequent rounds instead of all of them. A secondary password will only be asked if
+     * one of the handlers explicitly asks for it, again in this case it is assumed that the
+     * format is now identified and no other handlers need to be tried anymore. If this
+     * function returns then the import has succeeded, the only other possible exit from this
+     * function is an Exception which means unreadable file format, wrong pass or user cancel.
+     * @param file the file to load
+     * @param pass primary password (or null which may cause a prompt if needed)
+     * @param pass2 secondary password (or null which may cause a prompt if needed)
+     * @throws Exception if none of the import handlers succeeded or if the user clicks cancel
+     */
+    def load(File file, String pass, String pass2) throws Exception {
+        var password1 = pass
+        var password2 = pass
+        var tryAll = true
+
+        // there are 3 exits from this loop:
+        // * return on success
+        // * exception when it fails even with password
+        // * exception in the askImportPass() method (user cancel)
+        while (true){
+            val result = tryLoad(file, password1, password2, tryAll)
+            if (result == IMPORT_SUCCESS) {
+                return
+            } else if (result == IMPORT_NEED_SECONDARY_PASSWORD) {
+                tryAll = false
+                password2 = askImportPass("please enter secondary password")
+            } else if (result == IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD){
+                tryAll = false
+                password1 = askImportPass("please enter password")
+            } else if (result == IMPORT_UNREADABLE){
+                if (password1 == null){
+                    password1 = askImportPass("please enter password")
+                } else {
+                    throw new Exception("import failed, see log level TRACE for details")
+                }
+            }
+        }
+    }
+
+    /**
+     * Try to load the file, with all handlers until one of them returns
+     * something other than IMPORT_UNREADABLE. If tryAll is false then
+     * try only with the current (last used) handler.
+     * @param file the file to load
+     * @param pass primary password (or null)
+     * @param pass2 secondary password (or null)
+     * @param tryAll should all handlers be tried or only the current one
+     * @return the return status (one of the IMPORT_* constants)
+     */
+    private def tryLoad(File file, String pass, String pass2, Boolean tryAll){
+        if (tryAll){
+            return tryLoadWithEveryStrat(file, pass, pass2)
+        } else {
+            return tryLoadWithStrategy(file, pass, pass2, null)
+        }
+    }
+
+    /**
+     * Try to load with every available handler, stop if one of them returns
+     * something other than IMPORT_UNREADABLE.
+     * @param file the file to load
+     * @param pass primary password (or null)
+     * @param pass2 secondary password (or null)
+     * @return the return status (one of the IMPORT_* constants)
+     */
+    private def tryLoadWithEveryStrat(File file, String pass, String pass2){
         val int[] result = #[0]
         val strategies = #[
             WalletDumpHandler,
@@ -72,63 +148,16 @@ class WalletKeyTool implements Iterable<KeyObject> {
         return result.get(0)
     }
 
-    def load(File file, String pass) throws Exception {
-        var found = false
-
-        log.debug("trying all formats without password")
-        if (probeAllFormats(file, null, null) == IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD){
-            found = true
-        }
-
-        log.debug("asking for primary password")
-        var password = pass
-        if (password == null){
-            if (found){
-                password = prompt(importExportStrategy.class.simpleName + " needs the password")
-            } else {
-                password = prompt("none of the unencrypted strategies succeeded,\nwe might need a password")
-            }
-        }
-        if (password == null || password.length == 0){
-            throw new Exception("import canceled")
-        }
-
-        log.debug("trying import again with primary password")
-        var int result
-        if (found){
-            result = tryLoadWithStrategy(file, password, null, null)
-        } else {
-            result = probeAllFormats(file, password, null)
-        }
-        if (result == IMPORT_SUCCESS){
-            return
-        }
-
-        if (result == IMPORT_NEED_SECONDARY_PASSWORD){
-            // this time we don't need to try any other formats,
-            // if a handler asks for second password then it
-            // is the correct and only handler for this format
-            log.debug("asking for secondary password")
-            var password2 = prompt(importExportStrategy.class.simpleName + " needs the secondary password")
-            if (password2 == null || password2.length == 0){
-                throw new Exception("import canceled")
-            }
-            log.debug("trying import again with both passwords")
-            if (tryLoadWithStrategy(file, password, password2, null) == IMPORT_SUCCESS) {
-                return
-            }
-        }
-
-        // still here? -> Import has failed.
-        throw new Exception("import failed, none of the strategies worked. See log level TRACE for details")
-    }
-
-    val IMPORT_SUCCESS = 0
-    val IMPORT_UNREADABLE = 1
-    val IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD = 2
-    val IMPORT_NEED_SECONDARY_PASSWORD = 3
-
-    def tryLoadWithStrategy(File file, String pass, String pass2, Class<AbstractImportExportHandler> strat) {
+    /**
+     * Try to load with the handler class that is passed as the last argument. If it is
+     * null then use the current (last used) handler.
+     * @param file the file to load
+     * @param pass primary password (or null)
+     * @param pass2 secondary password (or null)
+     * @param strat the import handler class (or null if it should reuse the last one)
+     * @return the return status (one of the IMPORT_* constants)
+     */
+    private def tryLoadWithStrategy(File file, String pass, String pass2, Class<AbstractImportExportHandler> strat) {
         if (strat != null){
             setImportExportStrategy(strat)
         }
@@ -156,6 +185,14 @@ class WalletKeyTool implements Iterable<KeyObject> {
             log.trace("attempt to use " + stratName + " failed", e)
             return IMPORT_UNREADABLE
         }
+    }
+
+    private def askImportPass(String txtPrompt)throws Exception {
+        val pass = prompt(txtPrompt)
+        if (pass == null || pass.length == 0){
+            throw new Exception("import canceled")
+        }
+        return pass
     }
 
     def save(File file, String pass, Class<? extends AbstractImportExportHandler> strat) throws Exception {

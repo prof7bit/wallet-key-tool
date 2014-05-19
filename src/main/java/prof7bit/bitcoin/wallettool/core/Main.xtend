@@ -74,13 +74,14 @@ static class Main {
     static def consoleStart(CommandLine opt) {
         val filename = opt.args.get(0)
         val pass = opt.getOptionValue("password")
+        val pass2 = opt.getOptionValue("password2")
         new WalletKeyTool => [
             promptFunc = consolePromptFunc
             alertFunc = consoleAlertFunc
             yesNoFunc = consoleConfirmFunc
             reportProgressFunc = consoleProgressFunc
             try {
-                load(new File(filename), pass)
+                load(new File(filename), pass, pass2)
                 dumpToConsole
             } catch (Exception e) {
                 log.stacktrace(e)
@@ -91,6 +92,7 @@ static class Main {
     static def CommandLine parseOpt(String[] args) throws ParseException {
         val opt_defs = new Options
         opt_defs.addOption("p", "password", true, "password")
+        opt_defs.addOption("P", "password2", true, "secondary password")
         val optparser = new GnuParser
         optparser.parse(opt_defs, args)
     }

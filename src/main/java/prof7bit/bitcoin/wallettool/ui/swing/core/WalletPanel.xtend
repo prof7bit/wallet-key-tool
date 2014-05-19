@@ -287,7 +287,7 @@ class WalletPanel extends JPanel{
         if (file_open.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             new Thread([|
                 try {
-                    keyTool.load(file_open.selectedFile, null)
+                    keyTool.load(file_open.selectedFile, null, null)
                 } catch (Exception e) {
                     log.stacktrace(e)
                     alert(e.message)
