@@ -63,7 +63,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * Right after the header of a b-tree leaf page there is a
      * table with 16bit words, each data item has an entry in this
      * table. They are the offsets of the actual data (relative to
-     * START_DATA). We look up the value and add START_DATA and
+     * the start of the page). We look up the value and add the
      * absolute page offset to this value so we get an absolute
      * offset from the start of the file.
      */
