@@ -10,6 +10,14 @@ import java.util.Arrays
 import java.util.Formatter
 import java.util.List
 import org.slf4j.LoggerFactory
+import org.spongycastle.crypto.digests.SHA512Digest
+import org.spongycastle.crypto.engines.AESFastEngine
+import org.spongycastle.crypto.modes.CBCBlockCipher
+import org.spongycastle.crypto.paddings.PaddedBufferedBlockCipher
+import org.spongycastle.crypto.params.KeyParameter
+import org.spongycastle.crypto.params.ParametersWithIV
+import org.spongycastle.crypto.InvalidCipherTextException
+import java.io.UnsupportedEncodingException
 
 class WalletDatHandler extends AbstractImportExportHandler {
     val log = LoggerFactory.getLogger(WalletDatHandler)
@@ -112,13 +120,13 @@ class WalletDatHandler extends AbstractImportExportHandler {
     private def parseName(ByteBuffer key, ByteBuffer value) {
         val hash = key.readSizePrefixedByteArray
         val name = value.readString
-        println("name " + new String(hash) + " " + name)
+        //println("name " + new String(hash) + " " + name)
     }
 
     private def parseKey(ByteBuffer key, ByteBuffer value) {
         val public_key = key.readSizePrefixedByteArray
         val private_key = value.readSizePrefixedByteArray
-        println("key")
+        //println("key")
     }
 
     private def parseWkey(ByteBuffer key, ByteBuffer value) {
@@ -127,23 +135,24 @@ class WalletDatHandler extends AbstractImportExportHandler {
         val created = value.getLong
         val expires = value.getLong
         val comment = value.readString
-        println("wkey")
+        //println("wkey")
     }
 
     private def parseCkey(ByteBuffer key, ByteBuffer value) {
         val public_key = key.readSizePrefixedByteArray
         val encrypted_private_key = value.readSizePrefixedByteArray
-        println("ckey")
+        //println("ckey")
     }
 
     private def parseMkey(ByteBuffer key, ByteBuffer value) {
         val nID = key.getInt
-        val encrypted_key = value.readString
-        val salt = value.readString
+        val encrypted_key = value.readSizePrefixedByteArray
+        val salt = value.readSizePrefixedByteArray
         val nDerivationMethod = value.getInt
         val nDerivationIterations = value.getInt
         val other_params = value.readString
-        println("mkey " + nID + " " + nDerivationMethod + " " + nDerivationIterations)
+
+        xprintln(encrypted_key)
     }
 
     //
@@ -267,11 +276,6 @@ class WalletDatHandler extends AbstractImportExportHandler {
         return readByteAt(pagesize * pgno + 25)
     }
 
-    /** this works only with pages of type = P_LBTREE */
-    private def readRootPage(int pgno) throws IOException {
-        return readByteAt(pagesize * pgno + 88)
-    }
-
     private def readLastPgno() throws IOException {
         return readIntAt(32)
     }
@@ -344,7 +348,53 @@ class WalletDatHandler extends AbstractImportExportHandler {
         for (b : buf){
             formatter.format("%02x", b);
         }
-        println(formatter.toString)
+        println(buf.length * 8 + " " +  formatter.toString)
+        formatter.close
+    }
+}
+
+class WalletDatCrypter {
+    var  PaddedBufferedBlockCipher cipher
+
+    def setKeyFromPassphrase(String pass, byte[] salt, int nDerivationIterations, int nDerivationMethod) throws Exception {
+        if (nDerivationMethod != 0) {
+            throw new Exception("unsupported key derivation method")
+        }
+        initCipher(getKeyParamFromPass(pass, salt, nDerivationIterations), false)
     }
 
+    def decrypt(byte[] ciphertext)throws InvalidCipherTextException {
+        val size = cipher.getOutputSize(ciphertext.length)
+        val plaintext = newByteArrayOfSize(size)
+        val processLength = cipher.processBytes(ciphertext, 0, ciphertext.length, plaintext, 0)
+        cipher.doFinal(plaintext, processLength);
+        return plaintext
+    }
+
+    def getKeyParamFromPass(String pass, byte[] salt, int nDerivationIterations) throws UnsupportedEncodingException {
+        val stretched = stretchPass(pass, salt, nDerivationIterations)
+        val iv = newByteArrayOfSize(16)
+        System.arraycopy(stretched, 32, iv, 0, 16)
+        return new ParametersWithIV(new KeyParameter(stretched, 0, 32), iv)
+    }
+
+    def initCipher(ParametersWithIV key, boolean forEnryption){
+        cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESFastEngine))
+        cipher.init(forEnryption, key)
+    }
+
+    def stretchPass(String pass, byte[] salt, int nDerivationIterations) throws UnsupportedEncodingException {
+        var passbytes = pass.getBytes("UTF-8")
+        var data = newByteArrayOfSize(64)
+        val sha = new SHA512Digest
+        sha.update(passbytes, 0, passbytes.length)
+        sha.update(salt, 0, salt.length)
+        sha.doFinal(data, 0)
+        for (i : 1..<nDerivationIterations){
+            sha.reset
+            sha.update(data, 0, data.length)
+            sha.doFinal(data, 0)
+        }
+        return data
+    }
 }
