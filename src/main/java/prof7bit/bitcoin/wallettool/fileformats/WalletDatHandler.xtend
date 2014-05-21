@@ -30,7 +30,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
     static val MAGIC   = 0x53162
     static val VERSION = 9
 
-    static val NOT_YET = true
+    static val NOT_YET = false
 
     // page types
     static val P_LBTREE    = 5   /* Btree leaf. */
@@ -100,23 +100,23 @@ class WalletDatHandler extends AbstractImportExportHandler {
         val crypter = new WalletDatCrypter
 
         // first we decrypt the encrypted master key...
-        crypter.setKeyFromPassphrase(
+        val mkey = crypter.decrypt(
+            mkey_encrypted_key,
             password,
             mkey_salt,
             mkey_nDerivationIterations,
             mkey_nDerivationMethod
         )
-        val mkey = crypter.decrypt(mkey_encrypted_key)
 
-        // ...then we use that to decrypt the individual keys
+        // ...then we use that to decrypt all the individual keys
         for (key : rawKeyList.keys.values){
             if (key.encrypted_private_key != null){
-                val enc = key.encrypted_private_key
-                val pub = key.public_key
-                val iv = crypter.doubleHash(pub).take(16)
-                crypter.setKeyAndIV(mkey, iv)
-                val dec = crypter.decrypt(enc)
-                xprintln(dec)
+                key.private_key = crypter.decrypt(
+                    key.encrypted_private_key,
+                    mkey,
+                    key.public_key
+                )
+                xprintln(key.private_key)
             }
         }
     }
@@ -480,6 +480,25 @@ class WalletDatCrypter {
     def setKeyAndIV(byte[] key, byte[] iv){
         val params = new ParametersWithIV(new KeyParameter(key), iv)
         initCipher(params, false)
+    }
+
+    /**
+     * decrypt an encrypted private bitcoin key using the mkey. It also needs
+     * the public bitcoin key because the iv is derived from its hash.
+     */
+    def decrypt(byte[] enc_priv_key, byte[] mkey, byte[] pub_key) throws InvalidCipherTextException {
+        val iv = pub_key.doubleHash.take(16)
+        setKeyAndIV(mkey, iv)
+        return enc_priv_key.decrypt
+    }
+
+    /**
+     * decrypt byte[] ciphertext using password, salt and iterations.
+     * This is used for decrypting the encrypted master key
+     */
+    def decrypt(byte[] ciphertext, String pass, byte[] salt, int nDerivationIterations, int nDerivationMethod) throws Exception {
+        setKeyFromPassphrase(pass, salt, nDerivationIterations, nDerivationMethod)
+        return ciphertext.decrypt
     }
 
     def decrypt(byte[] ciphertext)throws InvalidCipherTextException {
