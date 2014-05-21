@@ -3,21 +3,25 @@ package prof7bit.bitcoin.wallettool.fileformats
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.io.UnsupportedEncodingException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.ArrayList
 import java.util.Arrays
 import java.util.Formatter
+import java.util.HashMap
 import java.util.List
+import java.util.Map
 import org.slf4j.LoggerFactory
+import org.spongycastle.crypto.InvalidCipherTextException
+import org.spongycastle.crypto.digests.SHA256Digest
 import org.spongycastle.crypto.digests.SHA512Digest
 import org.spongycastle.crypto.engines.AESFastEngine
 import org.spongycastle.crypto.modes.CBCBlockCipher
 import org.spongycastle.crypto.paddings.PaddedBufferedBlockCipher
 import org.spongycastle.crypto.params.KeyParameter
 import org.spongycastle.crypto.params.ParametersWithIV
-import org.spongycastle.crypto.InvalidCipherTextException
-import java.io.UnsupportedEncodingException
+import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
 
 class WalletDatHandler extends AbstractImportExportHandler {
     val log = LoggerFactory.getLogger(WalletDatHandler)
@@ -39,6 +43,15 @@ class WalletDatHandler extends AbstractImportExportHandler {
     var int last_pgno
 
     val List<ByteBuffer> items = new ArrayList
+    val rawKeyList = new WalletDatRawKeyDataList
+
+    // encrypted master key
+    var int mkey_nID
+    var byte[] mkey_encrypted_key
+    var byte[] mkey_salt
+    var int mkey_nDerivationMethod
+    var int mkey_nDerivationIterations
+    var String mkey_other_params
 
     /**
      * Try to parse keys from a bitcoin-core wallet.dat file.
@@ -64,6 +77,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
 
             readAllLeafPages
             parseAllItems
+            decrypt(password)
 
         } catch (Exception e) {
             log.error("exception", e)
@@ -73,10 +87,47 @@ class WalletDatHandler extends AbstractImportExportHandler {
     }
 
     //
+    // ************* decrypt and import
+    //
+
+    private def decrypt(String password) throws Exception {
+        if (mkey_encrypted_key == null){
+            return
+        }
+        if (password == null){
+            throw new FormatFoundNeedPasswordException
+        }
+        val crypter = new WalletDatCrypter
+
+        // first we decrypt the encrypted master key...
+        crypter.setKeyFromPassphrase(
+            password,
+            mkey_salt,
+            mkey_nDerivationIterations,
+            mkey_nDerivationMethod
+        )
+        val mkey = crypter.decrypt(mkey_encrypted_key)
+
+        // ...then we use that to decrypt the individual keys
+        for (key : rawKeyList.keys.values){
+            if (key.encrypted_private_key != null){
+                val enc = key.encrypted_private_key
+                val pub = key.public_key
+                val iv = crypter.doubleHash(pub).take(16)
+                crypter.setKeyAndIV(mkey, iv)
+                val dec = crypter.decrypt(enc)
+                xprintln(dec)
+            }
+        }
+    }
+
+
+    //
     // ************* parsing the wallet contents from the ByteBuffers
     //
 
     private def parseAllItems(){
+        rawKeyList.clear
         var i = 0
         while (i < items.length - 1) {
             val key = items.get(i)
@@ -108,7 +159,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
             case "key": parseKey(key, value)
             case "wkey": parseWkey(key, value)
             case "ckey": parseCkey(key, value)
-            case "mkey": parseMkey(key, value)
+            case "mkey": parseMkey(key, value)  // encrypted master key
 
             // ignoring a lot of other types (see pywallet)
             // because we are only interested in keys, not
@@ -118,41 +169,42 @@ class WalletDatHandler extends AbstractImportExportHandler {
     }
 
     private def parseName(ByteBuffer key, ByteBuffer value) {
-        val hash = key.readSizePrefixedByteArray
+        val hash = key.readString
         val name = value.readString
-        //println("name " + new String(hash) + " " + name)
+        rawKeyList.addName(hash, name)
     }
 
     private def parseKey(ByteBuffer key, ByteBuffer value) {
         val public_key = key.readSizePrefixedByteArray
         val private_key = value.readSizePrefixedByteArray
-        //println("key")
+        rawKeyList.addUnencrypted(public_key, private_key)
     }
 
     private def parseWkey(ByteBuffer key, ByteBuffer value) {
         val public_key = key.readSizePrefixedByteArray
         val private_key = value.readSizePrefixedByteArray
         val created = value.getLong
+        /*
         val expires = value.getLong
         val comment = value.readString
-        //println("wkey")
+        */
+        rawKeyList.addUnencrypted(public_key, private_key)
+        rawKeyList.keys.get(public_key).created = created
     }
 
     private def parseCkey(ByteBuffer key, ByteBuffer value) {
         val public_key = key.readSizePrefixedByteArray
         val encrypted_private_key = value.readSizePrefixedByteArray
-        //println("ckey")
+        rawKeyList.addEncrypted(public_key, encrypted_private_key)
     }
 
     private def parseMkey(ByteBuffer key, ByteBuffer value) {
-        val nID = key.getInt
-        val encrypted_key = value.readSizePrefixedByteArray
-        val salt = value.readSizePrefixedByteArray
-        val nDerivationMethod = value.getInt
-        val nDerivationIterations = value.getInt
-        val other_params = value.readString
-
-        xprintln(encrypted_key)
+        mkey_nID = key.getInt
+        mkey_encrypted_key = value.readSizePrefixedByteArray
+        mkey_salt = value.readSizePrefixedByteArray
+        mkey_nDerivationMethod = value.getInt
+        mkey_nDerivationIterations = value.getInt
+        mkey_other_params = value.readString
     }
 
     //
@@ -353,9 +405,68 @@ class WalletDatHandler extends AbstractImportExportHandler {
     }
 }
 
+
+
+/**
+ * Maintains collections of raw key data objects
+ * and names while they are parsed from wallet.dat
+ */
+class WalletDatRawKeyDataList {
+    public val Map<byte[], WalletDatRawKeyData> keys = new HashMap
+    public val Map<String, String> names = new HashMap
+
+    def findOrAddNew(byte[] pub){
+        var key = keys.get(pub)
+        if (key == null){
+            key = new WalletDatRawKeyData
+            keys.put(pub, key)
+        }
+        return key
+    }
+
+    def addName(String hash, String name){
+        names.put(hash, name)
+    }
+
+    def addEncrypted(byte[] pub, byte[] encrypted){
+        val key = findOrAddNew(pub)
+        key.public_key = pub
+        key.encrypted_private_key = encrypted
+    }
+
+    def addUnencrypted(byte[] pub, byte[] unencrypted){
+        val key = findOrAddNew(pub)
+        key.public_key = pub
+        key.private_key = unencrypted
+    }
+
+    def clear(){
+        keys.clear
+        names.clear
+    }
+}
+
+
+/**
+ * raw key data for a single key parsed from wallet.dat
+ */
+class WalletDatRawKeyData {
+    public var byte[] encrypted_private_key
+    public var byte[] private_key
+    public var byte[] public_key
+    public var long created
+}
+
+
+/**
+ * crypter used for wallet.dat encrypted keys
+ */
 class WalletDatCrypter {
     var  PaddedBufferedBlockCipher cipher
 
+    /**
+     * set key and iv from password and initialize cipher for decryption
+     */
     def setKeyFromPassphrase(String pass, byte[] salt, int nDerivationIterations, int nDerivationMethod) throws Exception {
         if (nDerivationMethod != 0) {
             throw new Exception("unsupported key derivation method")
@@ -363,16 +474,36 @@ class WalletDatCrypter {
         initCipher(getKeyParamFromPass(pass, salt, nDerivationIterations), false)
     }
 
+    /**
+     * set key and iv directly and initialize cipher for decryption.
+     */
+    def setKeyAndIV(byte[] key, byte[] iv){
+        val params = new ParametersWithIV(new KeyParameter(key), iv)
+        initCipher(params, false)
+    }
+
     def decrypt(byte[] ciphertext)throws InvalidCipherTextException {
         val size = cipher.getOutputSize(ciphertext.length)
         val plaintext = newByteArrayOfSize(size)
         val processLength = cipher.processBytes(ciphertext, 0, ciphertext.length, plaintext, 0)
-        cipher.doFinal(plaintext, processLength);
-        return plaintext
+        val doFinalLength = cipher.doFinal(plaintext, processLength);
+        return removePadding(plaintext, processLength + doFinalLength)
+    }
+
+    def removePadding(byte[] plaintext, int length){
+        if (length == plaintext.length){
+            return plaintext
+        } else {
+            val result = newByteArrayOfSize(length)
+            System.arraycopy(plaintext, 0, result, 0, length)
+            return result
+        }
     }
 
     def getKeyParamFromPass(String pass, byte[] salt, int nDerivationIterations) throws UnsupportedEncodingException {
         val stretched = stretchPass(pass, salt, nDerivationIterations)
+        // key is the first 32 bytes,
+        // iv is the next 16 bytes
         val iv = newByteArrayOfSize(16)
         System.arraycopy(stretched, 32, iv, 0, 16)
         return new ParametersWithIV(new KeyParameter(stretched, 0, 32), iv)
@@ -396,5 +527,20 @@ class WalletDatCrypter {
             sha.doFinal(data, 0)
         }
         return data
+    }
+
+    /**
+     * apply sha256 twice
+     * @return sha256(sha256(data))
+     */
+    def doubleHash(byte[] data){
+        val sha = new SHA256Digest
+        val buf = newByteArrayOfSize(32)
+        sha.update(data, 0, data.length)
+        sha.doFinal(buf, 0)
+        sha.reset
+        sha.update(buf, 0, buf.length)
+        sha.doFinal(buf, 0)
+        return buf
     }
 }
