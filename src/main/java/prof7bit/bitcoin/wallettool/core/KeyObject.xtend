@@ -99,6 +99,7 @@ class KeyObject {
     }
 
     private def initParamsIfNull(){
+        // FIXME: remove this confusing auto-initializing. Should better let it throw exception to enforce proper usage!
         if (params == null){
             log.debug("no params given, assuming Bitcoin, itializing params with 'c.g.bitcoin.params.MainNetParams'")
             this.params = defaultParams

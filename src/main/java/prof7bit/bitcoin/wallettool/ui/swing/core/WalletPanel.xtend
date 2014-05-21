@@ -161,6 +161,8 @@ class WalletPanel extends JPanel{
     val file_open = new JFileChooser => [
         addChoosableFileFilter(new FileNameExtensionFilter("Blockchain.info backup (*.aes.json)", "json"))
         addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
+        addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
+        addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core wallet.dat (*.dat)", "dat"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
         preferredSize = new Dimension(600, 500)
     ]

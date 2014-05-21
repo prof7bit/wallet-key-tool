@@ -1,14 +1,16 @@
 package prof7bit.bitcoin.wallettool.fileformats
 
+import com.google.bitcoin.core.ECKey
+import com.google.bitcoin.params.MainNetParams
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.io.UnsupportedEncodingException
+import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.ArrayList
 import java.util.Arrays
-import java.util.Formatter
 import java.util.HashMap
 import java.util.List
 import java.util.Map
@@ -21,6 +23,7 @@ import org.spongycastle.crypto.modes.CBCBlockCipher
 import org.spongycastle.crypto.paddings.PaddedBufferedBlockCipher
 import org.spongycastle.crypto.params.KeyParameter
 import org.spongycastle.crypto.params.ParametersWithIV
+import prof7bit.bitcoin.wallettool.core.KeyObject
 import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
 
 class WalletDatHandler extends AbstractImportExportHandler {
@@ -29,8 +32,6 @@ class WalletDatHandler extends AbstractImportExportHandler {
     // these are the only ones we support
     static val MAGIC   = 0x53162
     static val VERSION = 9
-
-    static val NOT_YET = true
 
     // page types
     static val P_LBTREE    = 5   /* Btree leaf. */
@@ -72,11 +73,6 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * db_page.h, db_dump and a hex editor.
      */
     override load(File file, String password, String password2) throws Exception {
-
-        if (NOT_YET){
-            throw new UnsupportedOperationException("not yet implemented")
-        }
-
         try {
             log.info("opening file {}", file)
             f = new RandomAccessFile(file, "r")
@@ -90,10 +86,8 @@ class WalletDatHandler extends AbstractImportExportHandler {
 
             parseBerkeleyFile
             parseBitcoinData
-            decrypt(password)
+            decryptAndImport(password)
 
-        } catch (Exception e) {
-            log.error("exception", e)
         } finally {
             f.close
         }
@@ -103,40 +97,96 @@ class WalletDatHandler extends AbstractImportExportHandler {
     // ************* decrypt and import
     //
 
-    private def decrypt(String password) throws Exception {
-        if (mkey_encrypted_key == null){
-            return
-        }
-        if (password == null){
-            throw new FormatFoundNeedPasswordException
-        }
-        val crypter = new WalletDatCrypter
+    /**
+     * Decrypt (if encrypted) the keys that we have parsed
+     * from the wallet and import them into walletKeyTool
+     */
+    private def decryptAndImport(String password) throws Exception {
+        if (mkey_encrypted_key != null){
+            if (password == null){
+                throw new FormatFoundNeedPasswordException
+            }
 
-        // first we decrypt the encrypted master key...
-        val mkey = crypter.decrypt(
-            mkey_encrypted_key,
-            password,
-            mkey_salt,
-            mkey_nDerivationIterations,
-            mkey_nDerivationMethod
-        )
+            val crypter = new WalletDatCrypter
 
-        // ...then we use that to decrypt all the individual keys
-        for (key : rawKeyList.keys.values){
-            if (key.encrypted_private_key != null){
-                key.private_key = crypter.decrypt(
-                    key.encrypted_private_key,
-                    mkey,
-                    key.public_key
-                )
-                xprintln(key.private_key)
+            // first we decrypt the encrypted master key...
+            val mkey = crypter.decrypt(
+                mkey_encrypted_key,
+                password,
+                mkey_salt,
+                mkey_nDerivationIterations,
+                mkey_nDerivationMethod
+            )
+
+            // ...then we use that to decrypt all the individual keys
+            for (key : rawKeyList.keyData.values){
+                if (key.encrypted_private_key != null){
+                    key.private_key = crypter.decrypt(
+                        key.encrypted_private_key,
+                        mkey,
+                        key.public_key
+                    )
+                }
             }
         }
+
+        // At this point we have all keys unencrypted in rawKeyList.
+        // import them into the current walletKeyTool instance
+        var count = 0
+        for (rawKey : rawKeyList.keyData.values){
+
+            var ECKey ecKey
+            if (rawKey.private_key.length > 32){
+                // ASN.1 encoded key (found in unencrypted wallets)
+                // make an uncompressed ECKey from it. This is the
+                // only constructor that lets us pass ASN.1 so
+                // we cannot directly instantiate a compressed key.
+                ecKey = ECKey.fromASN1(rawKey.private_key)
+                if (!Arrays.equals(ecKey.pubKey, rawKey.public_key)) {
+                    // doesn't match, now try compressed, using the already decoded bytes
+                    ecKey = new ECKey(new BigInteger(1, ecKey.privKeyBytes), null, true)
+                }
+            } else {
+                // this is what we normally get from an encrypted wallet,
+                // the keys are stored as the 256 bit integer
+                ecKey = new ECKey(new BigInteger(1, rawKey.private_key), null, rawKey.compressed)
+            }
+
+
+            if (Arrays.equals(ecKey.pubKey, rawKey.public_key)) {
+                val wktKey = new KeyObject(ecKey, params)
+                val addr = ecKey.toAddress(walletKeyTool.params).toString
+                if (rawKey.pool){
+                    wktKey.label = "(reserve)"
+                } else {
+                    val label = rawKeyList.getName(addr)
+                    wktKey.label = label
+                    if (label == ""){
+                       wktKey.label = "(change)"
+                    }
+                }
+                walletKeyTool.add(wktKey)
+                walletKeyTool.reportProgress(100 * count / rawKeyList.keyData.keySet.length, addr)
+                count = count + 1
+
+            } else {
+                log.error("calculated public key does not match for {}", rawKey.public_key)
+                count = count + 1
+            }
+        }
+
+        log.info("import complete :-)")
     }
 
+    def getParams(){
+        if (walletKeyTool.params == null){
+            walletKeyTool.params = new MainNetParams
+        }
+        return walletKeyTool.params
+    }
 
     //
-    // ************* parsing the wallet contents from the ByteBuffers
+    // ************* parsing the wallet contents from the key/value list
     //
 
     /**
@@ -186,23 +236,26 @@ class WalletDatHandler extends AbstractImportExportHandler {
             case "wkey": parseWkey(key, value)
             case "ckey": parseCkey(key, value)
             case "mkey": parseMkey(key, value)  // encrypted master key
+            case "pool": parsePool(key, value)  // reserve address
 
             // ignoring a lot of other types (see pywallet)
             // because we are only interested in keys, not
             // in tx or other stuff
-            default: return
+            default: log.trace("ignored: irrelevant type '{}'", type)
         }
     }
 
     private def parseName(ByteBuffer key, ByteBuffer value) {
         val hash = key.readString
         val name = value.readString
+        log.trace("found: type 'name' {} {}", hash, name)
         rawKeyList.addName(hash, name)
     }
 
     private def parseKey(ByteBuffer key, ByteBuffer value) {
         val public_key = key.readSizePrefixedByteArray
         val private_key = value.readSizePrefixedByteArray
+        log.trace("found: type 'key'")
         rawKeyList.addUnencrypted(public_key, private_key)
     }
 
@@ -214,13 +267,15 @@ class WalletDatHandler extends AbstractImportExportHandler {
         val expires = value.getLong
         val comment = value.readString
         */
+        log.trace("found: type 'wkey'")
         rawKeyList.addUnencrypted(public_key, private_key)
-        rawKeyList.keys.get(public_key).created = created
+        rawKeyList.keyData.get(public_key).created = created
     }
 
     private def parseCkey(ByteBuffer key, ByteBuffer value) {
         val public_key = key.readSizePrefixedByteArray
         val encrypted_private_key = value.readSizePrefixedByteArray
+        log.trace("found: type 'ckey'")
         rawKeyList.addEncrypted(public_key, encrypted_private_key)
     }
 
@@ -231,7 +286,18 @@ class WalletDatHandler extends AbstractImportExportHandler {
         mkey_nDerivationMethod = value.getInt
         mkey_nDerivationIterations = value.getInt
         mkey_other_params = value.readString
+        log.trace("found: type 'mkey'")
     }
+
+    private def parsePool(ByteBuffer key, ByteBuffer value) {
+        val n = key.getLong
+        value.getInt  // nVersion
+        value.getLong // nTime
+        val public_key = value.readSizePrefixedByteArray
+        rawKeyList.addPoolFlag(public_key)
+        log.trace("found: type 'pool' n={}", n)
+    }
+
 
     //
     // ************* reading stuff from a ByteBuffer in the way bitcoin likes to encode it
@@ -291,6 +357,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
                 readAllLeafPages(p)
             }
         }
+        log.debug("parsing done, found {} key/value pairs in db file", bdbKeyValueItems.length / 2)
     }
 
     /**
@@ -313,6 +380,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
      */
     private def readLeafPage(int p) throws IOException {
         val count_entries = p.readEntryCount
+        log.debug("page {} contains {} entries", p, count_entries)
         for (i : 0..<count_entries){
             val o = p.getDataOffset(i)
             val size = readShortAt(o).bitwiseAnd(0xffff)
@@ -419,18 +487,6 @@ class WalletDatHandler extends AbstractImportExportHandler {
     // ************* helpers
     //
 
-    private def xprintln(long n){
-        println(String.format("0x%08X",n))
-    }
-
-    private def xprintln(byte[] buf){
-        val formatter = new Formatter();
-        for (b : buf){
-            formatter.format("%02x", b);
-        }
-        println(buf.length * 8 + " " +  formatter.toString)
-        formatter.close
-    }
 }
 
 
@@ -440,14 +496,15 @@ class WalletDatHandler extends AbstractImportExportHandler {
  * and names while they are parsed from wallet.dat
  */
 class WalletDatRawKeyDataList {
-    public val Map<byte[], WalletDatRawKeyData> keys = new HashMap
+    public val Map<ByteBuffer, WalletDatRawKeyData> keyData = new HashMap
     public val Map<String, String> names = new HashMap
 
     def findOrAddNew(byte[] pub){
-        var key = keys.get(pub)
-        if (key == null){
+        var key = getKeyData(pub)
+        if (key === null){
             key = new WalletDatRawKeyData
-            keys.put(pub, key)
+            key.public_key = pub
+            keyData.put(ByteBuffer.wrap(pub), key)
         }
         return key
     }
@@ -456,20 +513,35 @@ class WalletDatRawKeyDataList {
         names.put(hash, name)
     }
 
+    def getName(String hash){
+        var result = names.get(hash)
+        if (result == null){
+            result = ""
+        }
+        return result
+    }
+
+    def getKeyData(byte[] pub){
+        return keyData.get(ByteBuffer.wrap(pub))
+    }
+
     def addEncrypted(byte[] pub, byte[] encrypted){
         val key = findOrAddNew(pub)
-        key.public_key = pub
         key.encrypted_private_key = encrypted
     }
 
     def addUnencrypted(byte[] pub, byte[] unencrypted){
         val key = findOrAddNew(pub)
-        key.public_key = pub
         key.private_key = unencrypted
     }
 
+    def addPoolFlag(byte[] pub){
+        val key = findOrAddNew(pub)
+        key.pool = true
+    }
+
     def clear(){
-        keys.clear
+        keyData.clear
         names.clear
     }
 }
@@ -482,7 +554,12 @@ class WalletDatRawKeyData {
     public var byte[] encrypted_private_key
     public var byte[] private_key
     public var byte[] public_key
+    public var boolean pool = false
     public var long created
+
+    def isCompressed(){
+        public_key.get(0) != 0x04
+    }
 }
 
 

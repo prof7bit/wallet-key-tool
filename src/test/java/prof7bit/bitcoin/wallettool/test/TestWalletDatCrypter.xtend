@@ -1,13 +1,15 @@
 package prof7bit.bitcoin.wallettool.test
 
 import java.io.UnsupportedEncodingException
+import java.util.HashMap
+import java.util.Map
 import org.junit.Assert
 import org.junit.Test
+import org.spongycastle.crypto.InvalidCipherTextException
 import org.spongycastle.crypto.params.KeyParameter
 import prof7bit.bitcoin.wallettool.fileformats.WalletDatCrypter
 
-import static extension prof7bit.bitcoin.wallettool.test.Ext.*
-import org.spongycastle.crypto.InvalidCipherTextException
+import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 
 public class TestWalletDatCrypter {
 
@@ -100,5 +102,4 @@ public class TestWalletDatCrypter {
         val hash_act = crypter.doubleHash(pub_key)
         Assert.assertArrayEquals(hash, hash_act)
     }
-
 }

@@ -175,7 +175,7 @@ class WalletKeyTool implements Iterable<KeyObject> {
             return IMPORT_SUCCESS
 
         } catch (FormatFoundNeedPasswordException e) {
-            log.info(stratName + " said it knows this file type but needs a password")
+            log.info(stratName + " has recognized this file and needs a password")
             return IMPORT_FORMAT_IDENTIFIED_NEED_PASSWORD
 
         } catch (NeedSecondaryPasswordException e) {
