@@ -30,7 +30,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
     static val MAGIC   = 0x53162
     static val VERSION = 9
 
-    static val NOT_YET = false
+    static val NOT_YET = true
 
     // page types
     static val P_LBTREE    = 5   /* Btree leaf. */
@@ -42,10 +42,23 @@ class WalletDatHandler extends AbstractImportExportHandler {
     var long pagesize
     var int last_pgno
 
-    val List<ByteBuffer> items = new ArrayList
+    /**
+     * this list will contain all items from the bdb file,
+     * its alternating key and value data. It has an even
+     * count of entries, alternating key and their associated
+     * value: { k1, v1, k2, v2, ... , kn, vn }
+     */
+    val List<ByteBuffer> bdbKeyValueItems = new ArrayList
+
+    /**
+     * this object will contain all bitcoin keys, it will
+     * be populated when parseBitcoinData is going through
+     * the bdbKeyValueItems list.
+     */
     val rawKeyList = new WalletDatRawKeyDataList
 
-    // encrypted master key
+    // all bitcoin private keys are encrypted with the mkey
+    // and the mkey itself is encrypted with the password.
     var int mkey_nID
     var byte[] mkey_encrypted_key
     var byte[] mkey_salt
@@ -75,8 +88,8 @@ class WalletDatHandler extends AbstractImportExportHandler {
             pagesize = readPageSize
             last_pgno = readLastPgno
 
-            readAllLeafPages
-            parseAllItems
+            parseBerkeleyFile
+            parseBitcoinData
             decrypt(password)
 
         } catch (Exception e) {
@@ -126,17 +139,30 @@ class WalletDatHandler extends AbstractImportExportHandler {
     // ************* parsing the wallet contents from the ByteBuffers
     //
 
-    private def parseAllItems(){
+    /**
+     * Parse the key/value pairs. After the bdb parsing is done we
+     * have a collection of all key/value pairs from the database.
+     * This method will go through all of them to parse relevant
+     * data from it. While it is running it will populate the
+     * rawKeyList with all keys and their meta data.
+     */
+    private def parseBitcoinData(){
         rawKeyList.clear
         var i = 0
-        while (i < items.length - 1) {
-            val key = items.get(i)
-            val value = items.get(i + 1)
+        while (i < bdbKeyValueItems.length - 1) {
+            val key = bdbKeyValueItems.get(i)
+            val value = bdbKeyValueItems.get(i + 1)
             parseKeyValuePair(key, value)
             i = i + 2
         }
     }
 
+    /**
+     * parse an individual key/value pair and see if it contains
+     * relevant information, extract this information (we only
+     * care about private keys and ignore all other stuff) and
+     * add it to the rawKeyList.
+     */
     private def parseKeyValuePair(ByteBuffer key, ByteBuffer value) {
         if (Arrays.equals(key.array, "main".bytes)){
             // ignore this key, it appears on page #1
@@ -250,13 +276,15 @@ class WalletDatHandler extends AbstractImportExportHandler {
     //
 
     /**
-     * parse all leaf pages in the file and put
-     * all their items into the items list. Begin
-     * with every root leaf and then follow the
-     * next_pgno until there is no next page.
+     * Parse the wallet.dat file, find all b-tree leaf
+     * pages in the file and put all their items into
+     * the bdbKeyValueItems list. Begin with every root
+     * leaf and then follow the next_pgno until there is
+     * no next page. When this function has returned we
+     * have all key/value items in the bdbKeyValueItems list.
      */
-    private def readAllLeafPages() throws IOException {
-        items.clear
+    private def parseBerkeleyFile() throws IOException {
+        bdbKeyValueItems.clear
         for (p : 0..last_pgno) {
             // find a root leaf
             if (p.readPageType ==  P_LBTREE && p.readPrevPgno == 0){
@@ -268,8 +296,8 @@ class WalletDatHandler extends AbstractImportExportHandler {
     /**
      * parse this leaf page and all next pages
      * as indicated by next_pgno and add all their
-     * items into the items list until there is
-     * no next page anymore.
+     * items into the bdbKeyValueItems list until
+     * there is no next page anymore.
      */
     private def readAllLeafPages(int p_start) throws IOException {
         var p = p_start
@@ -281,7 +309,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
 
     /**
      * parse this leaf page and add all
-     * its items to the items list
+     * its items to the bdbKeyValueItems list
      */
     private def readLeafPage(int p) throws IOException {
         val count_entries = p.readEntryCount
@@ -291,7 +319,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
             val type = readByteAt(o + 2)
             if (type == 1) {
                 val data = readByteArrayAt(o + 3, size)
-                items.add(ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN))
+                bdbKeyValueItems.add(ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN))
             }
         }
     }
