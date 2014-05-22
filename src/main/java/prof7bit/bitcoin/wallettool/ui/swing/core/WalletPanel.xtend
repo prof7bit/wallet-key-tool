@@ -26,11 +26,12 @@ import prof7bit.bitcoin.wallettool.core.WalletKeyTool
 import prof7bit.bitcoin.wallettool.fileformats.AbstractImportExportHandler
 import prof7bit.bitcoin.wallettool.fileformats.MultibitHandler
 import prof7bit.bitcoin.wallettool.fileformats.WalletDumpHandler
-import prof7bit.bitcoin.wallettool.ui.swing.listeners.MouseDownListener
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.ResizeListener
 import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
 
 import static extension prof7bit.bitcoin.wallettool.core.Ext.*
+import java.awt.event.MouseEvent
+import prof7bit.bitcoin.wallettool.ui.swing.listeners.MousePressedOrReleasedListener
 
 class WalletPanel extends JPanel{
     val log = LoggerFactory.getLogger(this.class)
@@ -57,98 +58,110 @@ class WalletPanel extends JPanel{
         ]
     ]
 
+    var boolean table_clicked_inside
+
     val JTable table = new JTable => [
         model = new WalletTableModel(keyTool)
         autoResizeMode = JTable.AUTO_RESIZE_ALL_COLUMNS
         addComponentListener(new ResizeListener [
             columnAdjuster.adjustColumns
         ])
-        addMouseListener(new MouseDownListener[evt|
-            if (evt.popupTrigger) {
-                val row = rowAtPoint(evt.point)
-                val inside = (row >= 0 && row < model.rowCount)
-                new JPopupMenu => [popup|
-                    if (inside){
+        addMouseListener(new MousePressedOrReleasedListener[evt|
+            if (SwingUtilities.isRightMouseButton(evt)){
+
+                // select immediately on mouse down
+                // before we do anything else
+                if (evt.ID == MouseEvent.MOUSE_PRESSED){
+                    val row = rowAtPoint(evt.point)
+                    if (row >= 0 && row < model.rowCount){
                         selectionModel.setSelectionInterval(row, row)
-                        new JMenuItem("copy address to clipboard") => [
-                            popup.add(it)
-                            addActionListener [
-                                copyToClipboard(row, 0)
-                            ]
-                        ]
-                        new JMenuItem("copy private key to clipboard") => [
-                            popup.add(it)
-                            addActionListener [
-                                copyToClipboard(row, 1)
-                            ]
-                        ]
-                        new JMenuItem("copy selected key to " + otherName) => [
-                            popup.add(it)
-                            addActionListener [
-                                if (otherKeyTool.params == null){
-                                    otherKeyTool.params = keyTool.params
-                                }
-                                otherKeyTool.addKeyFromOtherInstance(keyTool, row)
-                            ]
-                        ]
-                        new JMenuItem("move selected key to " + otherName) => [
-                            popup.add(it)
-                            addActionListener [
-                                if (otherKeyTool.params == null){
-                                    otherKeyTool.params = keyTool.params
-                                }
-                                otherKeyTool.addKeyFromOtherInstance(keyTool, row)
-                                keyTool.remove(row)
-                            ]
-                        ]
-                        new JMenuItem("Remove selected key") => [
-                            popup.add(it)
-                            addActionListener [
-                                keyTool.remove(row)
-                            ]
-                        ]
-                        new JMenuItem("Fetch balance and creation date from blockchain.info") => [
-                            popup.add(it)
-                            addActionListener [
-                                keyTool.doRemoteFetchBalance(row)
-                                keyTool.doRemoteFetchCreationDate(row)
-                            ]
-                        ]
-                        val key = keyTool.get(row)
-                        var compOtherTxt = "compressed"
-                        if (key.hasPrivKey){
-                            if (key.compressed){
-                                compOtherTxt = "uncompressed"
-                            }
-                            new JMenuItem("Add " + compOtherTxt + " version of this key") => [
+                        table_clicked_inside = true
+                    } else {
+                        table_clicked_inside = false
+                    }
+                }
+
+                // popup also on mouse down (some platforms)
+                // or on mouse up (some other platforms)
+                if (evt.popupTrigger) {
+                    val row = selectedRow
+                    new JPopupMenu => [popup|
+                        if (table_clicked_inside) {
+                            new JMenuItem("copy address to clipboard") => [
                                 popup.add(it)
                                 addActionListener [
-                                    keyTool.addOtherCompressedVersion(row)
+                                    copyToClipboard(row, 0)
                                 ]
                             ]
+                            new JMenuItem("copy private key to clipboard") => [
+                                popup.add(it)
+                                addActionListener [
+                                    copyToClipboard(row, 1)
+                                ]
+                            ]
+                            new JMenuItem("copy selected key to " + otherName) => [
+                                popup.add(it)
+                                addActionListener [
+                                    if (otherKeyTool.params == null){
+                                        otherKeyTool.params = keyTool.params
+                                    }
+                                    otherKeyTool.addKeyFromOtherInstance(keyTool, row)
+                                ]
+                            ]
+                            new JMenuItem("move selected key to " + otherName) => [
+                                popup.add(it)
+                                addActionListener [
+                                    if (otherKeyTool.params == null){
+                                        otherKeyTool.params = keyTool.params
+                                    }
+                                    otherKeyTool.addKeyFromOtherInstance(keyTool, row)
+                                    keyTool.remove(row)
+                                ]
+                            ]
+                            new JMenuItem("Remove selected key") => [
+                                popup.add(it)
+                                addActionListener [
+                                    keyTool.remove(row)
+                                ]
+                            ]
+                            new JMenuItem("Fetch balance and creation date from blockchain.info") => [
+                                popup.add(it)
+                                addActionListener [
+                                    keyTool.doRemoteFetchBalance(row)
+                                    keyTool.doRemoteFetchCreationDate(row)
+                                ]
+                            ]
+                            val key = keyTool.get(row)
+                            var compOtherTxt = "compressed"
+                            if (key.hasPrivKey){
+                                if (key.compressed){
+                                    compOtherTxt = "uncompressed"
+                                }
+                                new JMenuItem("Add " + compOtherTxt + " version of this key") => [
+                                    popup.add(it)
+                                    addActionListener [
+                                        keyTool.addOtherCompressedVersion(row)
+                                    ]
+                                ]
+                            }
                         }
-//                        new JMenuItem("Fetch all data for all keys from blockchain.info") => [
-//                            popup.add(it)
-//                            addActionListener [
-//                                keyTool.doRemoteUpdateAll
-//                            ]
-//                        ]
-                    }
-                    new JMenuItem("Add new key") => [
-                        popup.add(it)
-                        addActionListener [
-                            new AddKeyDialog(parentFrame, keyTool)
+                        new JMenuItem("Add new key") => [
+                            popup.add(it)
+                            addActionListener [
+                                new AddKeyDialog(parentFrame, keyTool)
+                            ]
                         ]
-                    ]
-                    new JMenuItem("Clear list") => [
-                        popup.add(it)
-                        addActionListener [
-                            keyTool.clear
+                        new JMenuItem("Clear list") => [
+                            popup.add(it)
+                            addActionListener [
+                                keyTool.clear
+                            ]
                         ]
+                        popup.show(table, evt.x, evt.y)
                     ]
-                    popup.show(table, evt.x, evt.y)
-                ]
+                }
             }
+
         ])
     ]
 

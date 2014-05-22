@@ -3,7 +3,7 @@ package prof7bit.bitcoin.wallettool.ui.swing.listeners
 import java.awt.event.MouseEvent
 import java.awt.event.MouseListener
 
-class MouseDownListener implements MouseListener {
+class MousePressedOrReleasedListener implements MouseListener {
 
     var (MouseEvent)=>void listener
 
@@ -15,8 +15,11 @@ class MouseDownListener implements MouseListener {
         this.listener.apply(e)
     }
 
+    override mouseReleased(MouseEvent e) {
+        this.listener.apply(e)
+    }
+
     override mouseClicked(MouseEvent e) {}
     override mouseEntered(MouseEvent e) {}
     override mouseExited(MouseEvent e) {}
-    override mouseReleased(MouseEvent e) {}
 }
