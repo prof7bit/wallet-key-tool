@@ -1,8 +1,6 @@
 package prof7bit.bitcoin.wallettool.test
 
 import java.io.UnsupportedEncodingException
-import java.util.HashMap
-import java.util.Map
 import org.junit.Assert
 import org.junit.Test
 import org.spongycastle.crypto.InvalidCipherTextException
