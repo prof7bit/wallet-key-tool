@@ -61,6 +61,10 @@ class WalletPanel extends JPanel{
 
     val check_show_hidden = new JCheckBox("show hidden files") => [
         selected = false
+        addActionListener [evt|
+            file_open.fileHidingEnabled = !selected
+            file_save.fileHidingEnabled = !selected
+        ]
     ]
 
     var boolean table_clicked_inside
@@ -240,7 +244,6 @@ class WalletPanel extends JPanel{
             var String filterExt
             var askPassword = true
             var Class<? extends AbstractImportExportHandler> strategy = null
-            file_save.fileHidingEnabled = !check_show_hidden.selected
 
             // we repeat the file dialog until we have a valid
             // file name or until the user clicks cancel.
@@ -304,7 +307,6 @@ class WalletPanel extends JPanel{
     }
 
     def loadWallet() {
-        file_open.fileHidingEnabled = !check_show_hidden.selected
         if (file_open.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             new Thread([|
                 try {
