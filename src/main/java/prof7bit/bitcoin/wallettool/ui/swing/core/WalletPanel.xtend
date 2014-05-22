@@ -59,14 +59,6 @@ class WalletPanel extends JPanel{
         ]
     ]
 
-    val check_show_hidden = new JCheckBox("show hidden files") => [
-        selected = false
-        addActionListener [evt|
-            file_open.fileHidingEnabled = !selected
-            file_save.fileHidingEnabled = !selected
-        ]
-    ]
-
     var boolean table_clicked_inside
 
     val JTable table = new JTable => [
@@ -187,6 +179,7 @@ class WalletPanel extends JPanel{
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core wallet.dat (*.dat)", "dat"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
         preferredSize = new Dimension(600, 500)
+        accessory = createAccessoryPanel(it)
     ]
 
     val file_save = new JFileChooser => [
@@ -195,7 +188,9 @@ class WalletPanel extends JPanel{
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
         preferredSize = new Dimension(600, 500)
+        accessory = createAccessoryPanel(it)
     ]
+
 
     val status_label = new JLabel("ready")
     val progress_bar = new JProgressBar => [
@@ -209,16 +204,27 @@ class WalletPanel extends JPanel{
         add(status_label, "push, grow")
     ]
 
+    def createAccessoryPanel(JFileChooser c){
+        return new JPanel => [panel|
+            new JCheckBox("show hidden files") => [
+                panel.add(it)
+                selected = false
+                addActionListener [evt|
+                    c.fileHidingEnabled = !selected
+                ]
+            ]
+        ]
+    }
+
     new(Frame parentFrame) {
         super()
         this.parentFrame = parentFrame
 
         // layout
 
-        layout = new MigLayout("fill", "[][][grow]", "[][grow]")
+        layout = new MigLayout("fill", "[][grow]", "[][grow]")
         add(btn_load)
-        add(btn_save)
-        add(check_show_hidden, "wrap")
+        add(btn_save, "wrap")
         val tablePane = new JScrollPane(table)
         tablePane.viewportView = table
         tablePane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
