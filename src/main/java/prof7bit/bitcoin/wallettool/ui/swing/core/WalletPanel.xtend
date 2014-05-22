@@ -1,10 +1,10 @@
 package prof7bit.bitcoin.wallettool.ui.swing.core
 
 import java.awt.Cursor
-import java.awt.Dimension
 import java.awt.Frame
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.awt.event.MouseEvent
 import java.io.File
 import javax.swing.JButton
 import javax.swing.JFileChooser
@@ -26,13 +26,11 @@ import prof7bit.bitcoin.wallettool.core.WalletKeyTool
 import prof7bit.bitcoin.wallettool.fileformats.AbstractImportExportHandler
 import prof7bit.bitcoin.wallettool.fileformats.MultibitHandler
 import prof7bit.bitcoin.wallettool.fileformats.WalletDumpHandler
+import prof7bit.bitcoin.wallettool.ui.swing.listeners.MousePressedOrReleasedListener
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.ResizeListener
 import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
 
 import static extension prof7bit.bitcoin.wallettool.core.Ext.*
-import java.awt.event.MouseEvent
-import prof7bit.bitcoin.wallettool.ui.swing.listeners.MousePressedOrReleasedListener
-import javax.swing.JCheckBox
 
 class WalletPanel extends JPanel{
     val log = LoggerFactory.getLogger(this.class)
@@ -172,25 +170,19 @@ class WalletPanel extends JPanel{
         adjustColumns
     ]
 
-    val file_open = new JFileChooser => [
-        fileHidingEnabled = true
+    val file_open = new JFileChooserEx => [
         addChoosableFileFilter(new FileNameExtensionFilter("Blockchain.info backup (*.aes.json)", "json"))
         addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core wallet.dat (*.dat)", "dat"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
-        preferredSize = new Dimension(800, 500)
-        accessory = createAccessoryPanel(it)
     ]
 
-    val file_save = new JFileChooser => [
-        fileHidingEnabled = true
+    val file_save = new JFileChooserEx => [
         setAcceptAllFileFilterUsed(false)
         addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
-        preferredSize = new Dimension(800, 500)
-        accessory = createAccessoryPanel(it)
     ]
 
     val status_label = new JLabel("ready")
@@ -204,46 +196,6 @@ class WalletPanel extends JPanel{
         add(progress_bar)
         add(status_label, "push, grow")
     ]
-
-    def createAccessoryPanel(JFileChooser c){
-        return new JPanel => [panel|
-            panel.layout = new MigLayout("fillx")
-            new JCheckBox("show hidden files") => [
-                panel.add(it, "pushx, growx, wrap")
-                selected = !c.fileHidingEnabled
-                addActionListener [evt|
-                    c.fileHidingEnabled = !selected
-                ]
-            ]
-            addDirButton(panel, c, "home", System.getProperty("user.home"))
-            addDirButton(panel, c, "APPDATA", System.getenv("APPDATA"))
-            addDirButton(panel, c, "~/Library/Application Support",
-                System.getProperty("user.home") + "/Library/Application Support"
-            )
-        ]
-    }
-
-    def addDirButton(JPanel panel, JFileChooser c, String label, String path){
-        val f = getFileOrNull(path)
-        if (f != null){
-            new JButton(label) => [
-                panel.add(it, "pushx, growx, wrap")
-                addActionListener [
-                    c.currentDirectory = f
-                ]
-            ]
-        }
-    }
-
-    def getFileOrNull(String path){
-        if (path != null){
-            val f = new File(path)
-            if (f.exists){
-                return f
-            }
-        }
-        return null
-    }
 
     new(Frame parentFrame) {
         super()
