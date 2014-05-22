@@ -160,7 +160,6 @@ class WalletPanel extends JPanel{
                     ]
                 }
             }
-
         ])
     ]
 
@@ -390,6 +389,5 @@ class WalletPanel extends JPanel{
             return ret.get(0)
         }
     }
-
 }
 

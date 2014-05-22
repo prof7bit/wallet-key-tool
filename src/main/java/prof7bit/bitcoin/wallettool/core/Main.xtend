@@ -13,7 +13,7 @@ import prof7bit.bitcoin.wallettool.ui.swing.core.SwingMain
 
 import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 
-static class Main {
+class Main {
     static val log = LoggerFactory.getLogger(Main)
 
     static val consolePromptFunc = [

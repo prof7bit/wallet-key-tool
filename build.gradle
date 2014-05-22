@@ -26,7 +26,7 @@ repositories {
 }
 
 dependencies {
-    compile 'org.eclipse.xtend:org.eclipse.xtend.lib:2.5.+'
+    compile 'org.eclipse.xtend:org.eclipse.xtend.lib:2.6.+'
     compile "com.google:bitcoinj:0.11.2-MB-ALICE"
     compile 'org.slf4j:slf4j-simple:1.7.+'
     compile 'com.miglayout:miglayout:3.7.+'
