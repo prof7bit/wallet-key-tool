@@ -9,3 +9,4 @@ xtend-gen/
 .DS_Store
 
 /.README.md.html
+/make_exe.sh

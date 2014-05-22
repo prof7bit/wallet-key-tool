@@ -4,12 +4,19 @@ buildscript {
     }
     dependencies {
         classpath 'org.xtend:xtend-gradle-plugin:0.0.+'
+        classpath 'edu.sc.seis.gradle:launch4j:1.0.6'
     }
 }
 
 apply plugin: 'xtend'
 apply plugin: 'java'
 apply plugin: 'eclipse'
+apply plugin: 'launch4j'
+
+launch4j {
+    // for this task to work launch4j needs to be installed and on the PATH.
+    mainClassName = "prof7bit.bitcoin.wallettool.core.Main"
+}
 
 project.ext.mainClassName = "prof7bit.bitcoin.wallettool.core.Main"
 
