@@ -32,6 +32,7 @@ import prof7bit.bitcoin.wallettool.ui.swing.misc.TableColumnAdjuster
 import static extension prof7bit.bitcoin.wallettool.core.Ext.*
 import java.awt.event.MouseEvent
 import prof7bit.bitcoin.wallettool.ui.swing.listeners.MousePressedOrReleasedListener
+import javax.swing.JCheckBox
 
 class WalletPanel extends JPanel{
     val log = LoggerFactory.getLogger(this.class)
@@ -56,6 +57,10 @@ class WalletPanel extends JPanel{
         addActionListener [
             saveWallet
         ]
+    ]
+
+    val check_show_hidden = new JCheckBox("show hidden files") => [
+        selected = false
     ]
 
     var boolean table_clicked_inside
@@ -206,9 +211,10 @@ class WalletPanel extends JPanel{
 
         // layout
 
-        layout = new MigLayout("fill", "[][grow]", "[][grow]")
+        layout = new MigLayout("fill", "[][][grow]", "[][grow]")
         add(btn_load)
-        add(btn_save, "wrap")
+        add(btn_save)
+        add(check_show_hidden, "wrap")
         val tablePane = new JScrollPane(table)
         tablePane.viewportView = table
         tablePane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
@@ -234,6 +240,7 @@ class WalletPanel extends JPanel{
             var String filterExt
             var askPassword = true
             var Class<? extends AbstractImportExportHandler> strategy = null
+            file_save.fileHidingEnabled = !check_show_hidden.selected
 
             // we repeat the file dialog until we have a valid
             // file name or until the user clicks cancel.
@@ -297,8 +304,7 @@ class WalletPanel extends JPanel{
     }
 
     def loadWallet() {
-        //val fd = new FileDialogEx(parentFrame, "select wallet file")
-        //fd.setFileFilters
+        file_open.fileHidingEnabled = !check_show_hidden.selected
         if (file_open.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             new Thread([|
                 try {
