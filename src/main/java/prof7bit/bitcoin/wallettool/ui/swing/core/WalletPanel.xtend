@@ -173,6 +173,7 @@ class WalletPanel extends JPanel{
     ]
 
     val file_open = new JFileChooser => [
+        fileHidingEnabled = true
         addChoosableFileFilter(new FileNameExtensionFilter("Blockchain.info backup (*.aes.json)", "json"))
         addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
@@ -183,6 +184,7 @@ class WalletPanel extends JPanel{
     ]
 
     val file_save = new JFileChooser => [
+        fileHidingEnabled = true
         setAcceptAllFileFilterUsed(false)
         addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
@@ -208,7 +210,7 @@ class WalletPanel extends JPanel{
             panel.layout = new MigLayout("fillx")
             new JCheckBox("show hidden files") => [
                 panel.add(it, "pushx, growx, wrap")
-                selected = false
+                selected = !c.fileHidingEnabled
                 addActionListener [evt|
                     c.fileHidingEnabled = !selected
                 ]
