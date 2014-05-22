@@ -178,7 +178,7 @@ class WalletPanel extends JPanel{
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core wallet.dat (*.dat)", "dat"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
-        preferredSize = new Dimension(600, 500)
+        preferredSize = new Dimension(800, 500)
         accessory = createAccessoryPanel(it)
     ]
 
@@ -187,10 +187,9 @@ class WalletPanel extends JPanel{
         addChoosableFileFilter(new FileNameExtensionFilter("Multibit key export file (*.key)", "key"))
         addChoosableFileFilter(new FileNameExtensionFilter("Bitcoin-core 'dumpwallet' file (*.txt)", "txt"))
         setFileFilter(new FileNameExtensionFilter("Multibit wallet (*.wallet)", "wallet"))
-        preferredSize = new Dimension(600, 500)
+        preferredSize = new Dimension(800, 500)
         accessory = createAccessoryPanel(it)
     ]
-
 
     val status_label = new JLabel("ready")
     val progress_bar = new JProgressBar => [
@@ -206,14 +205,42 @@ class WalletPanel extends JPanel{
 
     def createAccessoryPanel(JFileChooser c){
         return new JPanel => [panel|
+            panel.layout = new MigLayout("fillx")
             new JCheckBox("show hidden files") => [
-                panel.add(it)
+                panel.add(it, "pushx, growx, wrap")
                 selected = false
                 addActionListener [evt|
                     c.fileHidingEnabled = !selected
                 ]
             ]
+            addDirButton(panel, c, "home", System.getProperty("user.home"))
+            addDirButton(panel, c, "APPDATA", System.getenv("APPDATA"))
+            addDirButton(panel, c, "~/Library/Application Support",
+                System.getProperty("user.home") + "/Library/Application Support"
+            )
         ]
+    }
+
+    def addDirButton(JPanel panel, JFileChooser c, String label, String path){
+        val f = getFileOrNull(path)
+        if (f != null){
+            new JButton(label) => [
+                panel.add(it, "pushx, growx, wrap")
+                addActionListener [
+                    c.currentDirectory = f
+                ]
+            ]
+        }
+    }
+
+    def getFileOrNull(String path){
+        if (path != null){
+            val f = new File(path)
+            if (f.exists){
+                return f
+            }
+        }
+        return null
     }
 
     new(Frame parentFrame) {
@@ -409,5 +436,6 @@ class WalletPanel extends JPanel{
             return ret.get(0)
         }
     }
+
 }
 
