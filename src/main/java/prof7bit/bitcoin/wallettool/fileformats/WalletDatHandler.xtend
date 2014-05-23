@@ -441,17 +441,26 @@ class BerkeleyDBLeafPage extends BerkeleyDBPage {
 
     /**
      * Right after the header of a b-tree leaf page there is a
-     * table with 16bit words, each data item has an entry in this
+     * table with 16bit words, each item has an entry in this
      * table. They are the offsets of the actual data (relative to
-     * the start of the page). Given a page buffer of a b-tree
-     * page and an item index this function will look up the table
-     * and return the offset (relative to page start) of this item.
+     * the start of the page). Given an item index this function
+     * will look up the table and return the offset (relative to
+     * page start) of this item. Each row of data (key + value)
+     * is actually made up of 2 consecutive items, the key and
+     * the value. This method does not need to care whether its
+     * a key or a value, it just takes an index and returns the
+     * offset where to find the data.
      */
     private def getItemOffset(int index) {
         val lookup_table_offs = SIZE_LEAF_HEADER + 2 * index
         b.getShort(lookup_table_offs).bitwiseAnd(0xffff)
     }
 
+    /**
+     * read bytes from the specified offset and copy them
+     * into a new ByteBuffer. The returned ByteBuffer will
+     * be configured for little endian reading.
+     */
     private def getBytes(int offset, int size){
         val a = newByteArrayOfSize(size)
         b.position(offset)
@@ -459,21 +468,44 @@ class BerkeleyDBLeafPage extends BerkeleyDBPage {
         ByteBuffer.wrap(a).order(ByteOrder.LITTLE_ENDIAN)
     }
 
+    /**
+     * get the type of the item with the index,
+     * FIXME: see db_page.h for type constants
+     */
     def getItemType(int index){
         val offset = getItemOffset(index)
         b.get(offset + 2)
     }
 
+    /**
+     * get the item data at the index, return it in
+     * a newly allocated ByteBuffer. The Buffer will
+     * be configured as little endian. "Item" can be
+     * either a key or a value, its up to higher
+     * levels to know what it actually is, as far as
+     * this method is concerned its just a bunch of
+     * bytes addressed by an index number.
+     */
     def getItemData(int index){
         val offset = getItemOffset(index)
         val size = b.getShort(offset).bitwiseAnd(0xffff)
         getBytes(offset + 3, size)
     }
 
+    /**
+     * page number of next leaf page in this tree
+     * or 0 if this is the last leaf page.
+     */
     def getNextLeafPage() throws IOException {
         new BerkeleyDBLeafPage(raf, nextPgno, pgsize)
     }
 
+    /**
+     * Get count of items on this page. This is twice
+     * the number of key/value pairs because key and
+     * value are separate items. They are stored in
+     * alternating sequence: {k1, v1, k2, v2, .., kn, vn}
+     */
     def getEntryCount() {
         b.getShort(20)
     }
