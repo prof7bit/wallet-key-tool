@@ -28,7 +28,6 @@ import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
 class WalletDatHandler extends AbstractImportExportHandler {
     val log = LoggerFactory.getLogger(this.class)
 
-
     /**
      * Try to parse keys from a bitcoin-core wallet.dat file.
      * Reverse engineered with inspiration from pywallet.py,
@@ -133,21 +132,26 @@ class WalletDat {
         }
     }
 
+
     //
-    // Bitcoin stuff
     //
+    //
+    // Bitcoin specific stuff
 
     /**
      * parse an individual key/value pair and see if it contains
      * relevant information, extract this information (we only
      * care about private keys and ignore all other stuff) and
-     * add it to the rawKeyList.
+     * add it to the rawKeyList. "key" here means key as in
+     * "key/value", it does not mean bitcoin private key. This
+     * method will be called for every key/value pair that is
+     * found in the database while the database is being read.
      */
     private def parseKeyValuePair(ByteBuffer key, ByteBuffer value) {
         if (Arrays.equals(key.array, "main".bytes)){
             // ignore this key, it appears on page #1
             // as the only item and seems to be some
-            // bdb internal thing.
+            // bdb internal thing, not Bitcoin related.
             return
         }
 
@@ -162,7 +166,7 @@ class WalletDat {
         val type = key.readString
         switch(type){
             case "name": parseName(key, value)
-            case "key": parseKey(key, value)
+            case "key" : parseKey(key, value)
             case "wkey": parseWkey(key, value)
             case "ckey": parseCkey(key, value)
             case "mkey": parseMkey(key, value)  // encrypted master key
@@ -305,9 +309,11 @@ class WalletDat {
         rawKeyList.getName(addr)
     }
 
+
     //
-    // Berkeley-db stuff
     //
+    //
+    // Berkeley-db specific stuff, not Bitcoin-related
 
     /**
      * Parse the wallet.dat file, find all b-tree leaf
