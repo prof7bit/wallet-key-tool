@@ -10,10 +10,8 @@ import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
-import java.util.ArrayList
 import java.util.Arrays
 import java.util.HashMap
-import java.util.List
 import java.util.Map
 import org.slf4j.LoggerFactory
 import org.spongycastle.crypto.InvalidCipherTextException
@@ -28,31 +26,8 @@ import prof7bit.bitcoin.wallettool.core.KeyObject
 import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
 
 class WalletDatHandler extends AbstractImportExportHandler {
-    val log = LoggerFactory.getLogger(WalletDatHandler)
+    val log = LoggerFactory.getLogger(this.class)
 
-    /**
-     * this list will contain all items from the bdb file,
-     * its alternating key and value data. It has an even
-     * count of entries, alternating key and their associated
-     * value: { k1, v1, k2, v2, ... , kn, vn }
-     */
-    val List<ByteBuffer> bdbKeyValueItems = new ArrayList
-
-    /**
-     * this object will contain all bitcoin keys, it will
-     * be populated when parseBitcoinData is going through
-     * the bdbKeyValueItems list.
-     */
-    val rawKeyList = new WalletDatRawKeyDataList
-
-    // all bitcoin private keys are encrypted with the mkey
-    // and the mkey itself is encrypted with the password.
-    var int mkey_nID
-    var byte[] mkey_encrypted_key
-    var byte[] mkey_salt
-    var int mkey_nDerivationMethod
-    var int mkey_nDerivationIterations
-    var String mkey_other_params
 
     /**
      * Try to parse keys from a bitcoin-core wallet.dat file.
@@ -60,61 +35,12 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * db_page.h, db_dump and a hex editor.
      */
     override load(File file, String password, String password2) throws Exception {
-        var RandomAccessFile raf
-        try {
-            log.info("opening file {}", file)
-            raf = new RandomAccessFile(file, "r")
 
-            parseBerkeleyFile(raf)
-            parseBitcoinData
-            decryptAndImport(password)
+        val wallet = new WalletDat(file)
+        wallet.decrypt(password)
 
-        } finally {
-            raf.close
-        }
-    }
-
-    //
-    // ************* decrypt and import
-    //
-
-    /**
-     * Decrypt (if encrypted) the keys that we have parsed
-     * from the wallet and import them into walletKeyTool
-     */
-    private def decryptAndImport(String password) throws Exception {
-        if (mkey_encrypted_key != null){
-            if (password == null){
-                throw new FormatFoundNeedPasswordException
-            }
-
-            val crypter = new WalletDatCrypter
-
-            // first we decrypt the encrypted master key...
-            val mkey = crypter.decrypt(
-                mkey_encrypted_key,
-                password,
-                mkey_salt,
-                mkey_nDerivationIterations,
-                mkey_nDerivationMethod
-            )
-
-            // ...then we use that to decrypt all the individual keys
-            for (key : rawKeyList.keyData.values){
-                if (key.encrypted_private_key != null){
-                    key.private_key = crypter.decrypt(
-                        key.encrypted_private_key,
-                        mkey,
-                        key.public_key
-                    )
-                }
-            }
-        }
-
-        // At this point we have all keys unencrypted in rawKeyList.
-        // import them into the current walletKeyTool instance
         var count = 0
-        for (rawKey : rawKeyList.keyData.values){
+        for (rawKey : wallet.keys){
 
             var ECKey ecKey
             if (rawKey.private_key.length > 32){
@@ -140,14 +66,14 @@ class WalletDatHandler extends AbstractImportExportHandler {
                 if (rawKey.pool){
                     wktKey.label = "(reserve)"
                 } else {
-                    val label = rawKeyList.getName(addr)
+                    val label = wallet.getAddrLabel(addr)
                     wktKey.label = label
                     if (label == ""){
                        wktKey.label = "(change)"
                     }
                 }
                 walletKeyTool.add(wktKey)
-                walletKeyTool.reportProgress(100 * count / rawKeyList.keyData.keySet.length, addr)
+                walletKeyTool.reportProgress(100 * count / wallet.keys.length, addr)
                 count = count + 1
 
             } else {
@@ -159,34 +85,57 @@ class WalletDatHandler extends AbstractImportExportHandler {
         log.info("import complete :-)")
     }
 
-    def getParams(){
+    private def getParams(){
         if (walletKeyTool.params == null){
             walletKeyTool.params = new MainNetParams
         }
         return walletKeyTool.params
     }
 
-    //
-    // ************* parsing the wallet contents from the key/value list
-    //
+    /**
+     * Save the keys to the wallet.dat file. This will always
+     * throw an exception because it will not be implemented.
+     */
+    override save(File file, String password, String password2) throws Exception {
+        throw new UnsupportedOperationException("Writing wallet.dat is not supported")
+    }
+}
+
+class WalletDat {
+    val log = LoggerFactory.getLogger(this.class)
+
+    var RandomAccessFile raf
+    var ByteBuffer currentKey = null
 
     /**
-     * Parse the key/value pairs. After the bdb parsing is done we
-     * have a collection of all key/value pairs from the database.
-     * This method will go through all of them to parse relevant
-     * data from it. While it is running it will populate the
-     * rawKeyList with all keys and their meta data.
+     * this object will contain all bitcoin keys, it will
+     * be populated while going through the bdb key/value
+     * pairs in the file.
      */
-    private def parseBitcoinData(){
-        rawKeyList.clear
-        var i = 0
-        while (i < bdbKeyValueItems.length - 1) {
-            val key = bdbKeyValueItems.get(i)
-            val value = bdbKeyValueItems.get(i + 1)
-            parseKeyValuePair(key, value)
-            i = i + 2
+    val rawKeyList = new WalletDatRawKeyDataList
+
+    // all bitcoin private keys are encrypted with the mkey
+    // and the mkey itself is encrypted with the password.
+    var int mkey_nID
+    var byte[] mkey_encrypted_key
+    var byte[] mkey_salt
+    var int mkey_nDerivationMethod
+    var int mkey_nDerivationIterations
+    var String mkey_other_params
+
+    new (File file) throws Exception {
+        try {
+            log.info("opening file {}", file)
+            raf = new RandomAccessFile(file, "r")
+            parseBerkeleyFile
+        } finally {
+            raf.close
         }
     }
+
+    //
+    // Bitcoin stuff
+    //
 
     /**
      * parse an individual key/value pair and see if it contains
@@ -279,11 +228,6 @@ class WalletDatHandler extends AbstractImportExportHandler {
         log.trace("found: type 'pool' n={}", n)
     }
 
-
-    //
-    // ************* reading stuff from a ByteBuffer in the way bitcoin likes to encode it
-    //
-
     private def readString(ByteBuffer buf) {
         return new String(buf.readSizePrefixedByteArray)
     }
@@ -318,10 +262,52 @@ class WalletDatHandler extends AbstractImportExportHandler {
         }
     }
 
-    //
-    // ************* reading Berkeley-specific structures from the file
-    //
 
+    /**
+     * Decrypt (if encrypted) the keys in the raw key list,
+     * do nothing if they are not encrypted
+     */
+    def decrypt(String password) throws Exception {
+        if (mkey_encrypted_key != null){
+            if (password == null){
+                throw new FormatFoundNeedPasswordException
+            }
+
+            val crypter = new WalletDatCrypter
+
+            // first we decrypt the encrypted master key...
+            val mkey = crypter.decrypt(
+                mkey_encrypted_key,
+                password,
+                mkey_salt,
+                mkey_nDerivationIterations,
+                mkey_nDerivationMethod
+            )
+
+            // ...then we use that to decrypt all the individual keys
+            for (key : rawKeyList.keyData.values){
+                if (key.encrypted_private_key != null){
+                    key.private_key = crypter.decrypt(
+                        key.encrypted_private_key,
+                        mkey,
+                        key.public_key
+                    )
+                }
+            }
+        }
+    }
+
+    def getKeys() {
+        rawKeyList.keyData.values
+    }
+
+    def getAddrLabel(String addr){
+        rawKeyList.getName(addr)
+    }
+
+    //
+    // Berkeley-db stuff
+    //
 
     /**
      * Parse the wallet.dat file, find all b-tree leaf
@@ -331,7 +317,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * no next page. When this function has returned we
      * have all key/value items in the bdbKeyValueItems list.
      */
-    private def parseBerkeleyFile(RandomAccessFile raf) throws Exception {
+    private def parseBerkeleyFile() throws Exception {
         // these are the only ones we support
         val MAGIC   = 0x53162
         val VERSION = 9
@@ -345,7 +331,6 @@ class WalletDatHandler extends AbstractImportExportHandler {
         val pagesize = head.pageSize
         val last_pgno = head.lastPgno
 
-        bdbKeyValueItems.clear
         for (pgno : 0..last_pgno) {
             // find a root leaf
             val page = new BerkeleyDBLeafPage(raf, pgno, pagesize)
@@ -353,7 +338,6 @@ class WalletDatHandler extends AbstractImportExportHandler {
                 readAllLeafPages(page)
             }
         }
-        log.debug("parsing done, found {} key/value pairs in db file", bdbKeyValueItems.length / 2)
     }
 
     /**
@@ -379,18 +363,18 @@ class WalletDatHandler extends AbstractImportExportHandler {
         log.debug("page {} contains {} entries", page.pgno , count)
         for (i : 0..<count){
             if (page.getItemType(i) == 1) {
-                val data = page.getItemData(i)
-                bdbKeyValueItems.add(data)
+                val item = page.getItemData(i)
+                if (currentKey == null){
+                    //even number, item is a key
+                    currentKey = item
+                } else {
+                    // odd number, item is a value,
+                    // previous item was its key
+                    parseKeyValuePair(currentKey, item)
+                    currentKey = null
+                }
             }
         }
-    }
-
-    //
-    // ************* saving (won't be implemented)
-    //
-
-    override save(File file, String password, String password2) throws Exception {
-        throw new UnsupportedOperationException("Writing wallet.dat is not supported")
     }
 }
 
