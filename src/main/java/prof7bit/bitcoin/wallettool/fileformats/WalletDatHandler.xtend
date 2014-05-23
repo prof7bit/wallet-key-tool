@@ -9,6 +9,7 @@ import java.io.UnsupportedEncodingException
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 import java.util.ArrayList
 import java.util.Arrays
 import java.util.HashMap
@@ -28,20 +29,6 @@ import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
 
 class WalletDatHandler extends AbstractImportExportHandler {
     val log = LoggerFactory.getLogger(WalletDatHandler)
-
-    // these are the only ones we support
-    static val MAGIC   = 0x53162
-    static val VERSION = 9
-
-    // page types
-    static val P_LBTREE    = 5   /* Btree leaf. */
-
-    var RandomAccessFile f
-    val bb2 = ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN)
-    val bb4 = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-
-    var long pagesize
-    var int last_pgno
 
     /**
      * this list will contain all items from the bdb file,
@@ -73,23 +60,17 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * db_page.h, db_dump and a hex editor.
      */
     override load(File file, String password, String password2) throws Exception {
+        var RandomAccessFile raf
         try {
             log.info("opening file {}", file)
-            f = new RandomAccessFile(file, "r")
-            val magic = readMagic
-            val version = readVersion
-            if (magic != MAGIC || version != VERSION) {
-                throw new Exception("this is not a valid wallet.dat file")
-            }
-            pagesize = readPageSize
-            last_pgno = readLastPgno
+            raf = new RandomAccessFile(file, "r")
 
-            parseBerkeleyFile
+            parseBerkeleyFile(raf)
             parseBitcoinData
             decryptAndImport(password)
 
         } finally {
-            f.close
+            raf.close
         }
     }
 
@@ -341,6 +322,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
     // ************* reading Berkeley-specific structures from the file
     //
 
+
     /**
      * Parse the wallet.dat file, find all b-tree leaf
      * pages in the file and put all their items into
@@ -349,12 +331,26 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * no next page. When this function has returned we
      * have all key/value items in the bdbKeyValueItems list.
      */
-    private def parseBerkeleyFile() throws IOException {
+    private def parseBerkeleyFile(RandomAccessFile raf) throws Exception {
+        // these are the only ones we support
+        val MAGIC   = 0x53162
+        val VERSION = 9
+
+        val head = new BerkeleyDBHeaderPage(raf)
+        val magic = head.magic
+        val version = head.version
+        if (magic != MAGIC || version != VERSION) {
+            throw new Exception("this is not a valid wallet.dat file")
+        }
+        val pagesize = head.pageSize
+        val last_pgno = head.lastPgno
+
         bdbKeyValueItems.clear
-        for (p : 0..last_pgno) {
+        for (pgno : 0..last_pgno) {
             // find a root leaf
-            if (p.readPageType ==  P_LBTREE && p.readPrevPgno == 0){
-                readAllLeafPages(p)
+            val page = new BerkeleyDBLeafPage(raf, pgno, pagesize)
+            if (page.isLBTREE && page.isRootPage){
+                readAllLeafPages(page)
             }
         }
         log.debug("parsing done, found {} key/value pairs in db file", bdbKeyValueItems.length / 2)
@@ -366,11 +362,11 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * items into the bdbKeyValueItems list until
      * there is no next page anymore.
      */
-    private def readAllLeafPages(int p_start) throws IOException {
-        var p = p_start
-        while (p != 0){
-            readLeafPage(p)
-            p = p.readNextPgno
+    private def readAllLeafPages(BerkeleyDBLeafPage root) throws IOException {
+        var page = root
+        while (page.hasNextPage){
+            readLeafPage(page)
+            page = page.nextLeafPage
         }
     }
 
@@ -378,101 +374,16 @@ class WalletDatHandler extends AbstractImportExportHandler {
      * parse this leaf page and add all
      * its items to the bdbKeyValueItems list
      */
-    private def readLeafPage(int p) throws IOException {
-        val count_entries = p.readEntryCount
-        log.debug("page {} contains {} entries", p, count_entries)
-        for (i : 0..<count_entries){
-            val o = p.getDataOffset(i)
-            val size = readShortAt(o).bitwiseAnd(0xffff)
-            val type = readByteAt(o + 2)
-            if (type == 1) {
-                val data = readByteArrayAt(o + 3, size)
-                bdbKeyValueItems.add(ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN))
+    private def readLeafPage(BerkeleyDBLeafPage page) {
+        val count = page.entryCount
+        log.debug("page {} contains {} entries", page.pgno , count)
+        for (i : 0..<count){
+            if (page.getItemType(i) == 1) {
+                val data = page.getItemData(i)
+                bdbKeyValueItems.add(data)
             }
         }
     }
-
-    static val START_TABLE = 26
-
-    /**
-     * Right after the header of a b-tree leaf page there is a
-     * table with 16bit words, each data item has an entry in this
-     * table. They are the offsets of the actual data (relative to
-     * the start of the page). Given a page number of a b-tree
-     * page and an item index this function will look up the table
-     * and return the absolute file offset of this item.
-     */
-    private def long getDataOffset(int p, int index) throws IOException {
-        val lookup_table_offs = p * pagesize + START_TABLE + 2 * index
-        val item_offs = readShortAt(lookup_table_offs).bitwiseAnd(0xffff)
-        return  item_offs + p * pagesize
-    }
-
-    private def readPrevPgno(int pgno) throws IOException {
-        return readIntAt(pagesize * pgno + 12)
-    }
-
-    private def readNextPgno(int pgno) throws IOException {
-        return readIntAt(pagesize * pgno + 16)
-    }
-
-    private def readEntryCount(int pgno) throws IOException {
-        return readShortAt(pagesize * pgno + 20)
-    }
-
-    private def readPageType(int pgno) throws IOException {
-        return readByteAt(pagesize * pgno + 25)
-    }
-
-    private def readLastPgno() throws IOException {
-        return readIntAt(32)
-    }
-
-    private def readMagic() throws IOException {
-        return readIntAt(12)
-    }
-
-    private def readVersion() throws IOException {
-        return readIntAt(16)
-    }
-
-    private def readPageSize() throws IOException {
-        return readIntAt(20)
-    }
-
-
-    //
-    // ************* random access file reading, using LITTLE endian
-    //
-
-    private def byte[] readByteArrayAt(long offset, int size) throws IOException {
-        val result = newByteArrayOfSize(size)
-        f.seek(offset)
-        f.read(result)
-        return result
-    }
-
-    private def int readIntAt(long offset) throws IOException {
-        f.seek(offset)
-        bb4.clear
-        f.channel.read(bb4)
-        bb4.flip
-        return bb4.int
-    }
-
-    private def short readShortAt(long offset) throws IOException {
-        f.seek(offset)
-        bb2.clear
-        f.channel.read(bb2)
-        bb2.flip
-        return bb2.short
-    }
-
-    private def byte readByteAt(long offset) throws IOException {
-        f.seek(offset)
-        return f.readByte
-    }
-
 
     //
     // ************* saving (won't be implemented)
@@ -481,14 +392,130 @@ class WalletDatHandler extends AbstractImportExportHandler {
     override save(File file, String password, String password2) throws Exception {
         throw new UnsupportedOperationException("Writing wallet.dat is not supported")
     }
+}
 
+abstract class BerkeleyDBPage {
+    // page types
+    static val P_LBTREE    = 5   /* Btree leaf. */
 
-    //
-    // ************* helpers
-    //
+    protected var ByteBuffer b
+    protected var RandomAccessFile raf
+    protected var int pgno
+    protected var long pgsize
+
+    new (RandomAccessFile raf, int pgno, long pgsize) throws IOException {
+        this.raf = raf
+        this.pgno = pgno
+        this.pgsize = pgsize
+        b = raf.channel.map(FileChannel.MapMode.READ_ONLY, pgno * pgsize, pgsize).order(ByteOrder.LITTLE_ENDIAN)
+    }
+
+    def getPgno() {
+        pgno
+    }
+
+    def getPrevPgno() {
+        b.getInt(12)
+    }
+
+    def getNextPgno() {
+        b.getInt(16)
+    }
+
+    def isRootPage() {
+        prevPgno == 0
+    }
+
+    def hasNextPage() {
+        nextPgno != 0
+    }
+
+    def isLBTREE() {
+        pageType == P_LBTREE
+    }
+
+    def getPageType() {
+        b.get(25)
+    }
+}
+
+/**
+ * this is a leaf page, it contains all the data
+ */
+class BerkeleyDBLeafPage extends BerkeleyDBPage {
+    static val SIZE_LEAF_HEADER = 26
+
+    new(RandomAccessFile raf, int pgno, long pgsize) throws IOException {
+        super(raf, pgno, pgsize)
+    }
+
+    /**
+     * Right after the header of a b-tree leaf page there is a
+     * table with 16bit words, each data item has an entry in this
+     * table. They are the offsets of the actual data (relative to
+     * the start of the page). Given a page buffer of a b-tree
+     * page and an item index this function will look up the table
+     * and return the offset (relative to page start) of this item.
+     */
+    private def getItemOffset(int index) {
+        val lookup_table_offs = SIZE_LEAF_HEADER + 2 * index
+        b.getShort(lookup_table_offs).bitwiseAnd(0xffff)
+    }
+
+    private def getBytes(int offset, int size){
+        val a = newByteArrayOfSize(size)
+        b.position(offset)
+        b.get(a)
+        ByteBuffer.wrap(a).order(ByteOrder.LITTLE_ENDIAN)
+    }
+
+    def getItemType(int index){
+        val offset = getItemOffset(index)
+        b.get(offset + 2)
+    }
+
+    def getItemData(int index){
+        val offset = getItemOffset(index)
+        val size = b.getShort(offset).bitwiseAnd(0xffff)
+        getBytes(offset + 3, size)
+    }
+
+    def getNextLeafPage() throws IOException {
+        new BerkeleyDBLeafPage(raf, nextPgno, pgsize)
+    }
+
+    def getEntryCount() {
+        b.getShort(20)
+    }
 
 }
 
+/**
+ * this is only used for page 0 to read magic, version, page size, etc.
+ */
+class BerkeleyDBHeaderPage extends BerkeleyDBPage {
+    static val SIZE_METADATA_HEADER = 72
+
+    new (RandomAccessFile raf) throws IOException {
+        super(raf, 0, SIZE_METADATA_HEADER)
+    }
+
+    def getLastPgno() {
+        b.getInt(32)
+    }
+
+    def getMagic() {
+        b.getInt(12)
+    }
+
+    def getVersion() {
+        b.getInt(16)
+    }
+
+    def getPageSize() {
+        b.getInt(20)
+    }
+}
 
 
 /**
