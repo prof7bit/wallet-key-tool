@@ -233,12 +233,11 @@ class WalletDat {
     }
 
     private def readString(ByteBuffer buf) {
-        return new String(buf.readSizePrefixedByteArray)
+        new String(buf.readSizePrefixedByteArray)
     }
 
     private def readSizePrefixedByteArray(ByteBuffer buf){
-        val size = buf.readCompactSize
-        return buf.readByteArray(size)
+        buf.readByteArray(buf.readCompactSize)
     }
 
     private def readByteArray(ByteBuffer buf, int size){
@@ -518,7 +517,7 @@ class WalletDatRawKeyDataList {
 
     def findOrAddNew(byte[] pub){
         var key = getKeyData(pub)
-        if (key === null){
+        if (key == null){
             key = new WalletDatRawKeyData
             key.public_key = pub
             keyData.put(ByteBuffer.wrap(pub), key)
@@ -539,7 +538,7 @@ class WalletDatRawKeyDataList {
     }
 
     def getKeyData(byte[] pub){
-        return keyData.get(ByteBuffer.wrap(pub))
+        keyData.get(ByteBuffer.wrap(pub))
     }
 
     def addEncrypted(byte[] pub, byte[] encrypted){
