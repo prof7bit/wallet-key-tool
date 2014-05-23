@@ -147,7 +147,7 @@ class WalletDat {
      * method will be called for every key/value pair that is
      * found in the database while the database is being read.
      */
-    private def parseKeyValuePair(ByteBuffer key, ByteBuffer value) {
+    private def processKeyValuePair(ByteBuffer key, ByteBuffer value) {
         if (Arrays.equals(key.array, "main".bytes)){
             // ignore this key, it appears on page #1
             // as the only item and seems to be some
@@ -316,11 +316,11 @@ class WalletDat {
 
     /**
      * Parse the wallet.dat file, find all b-tree leaf
-     * pages in the file and put all their items into
-     * the bdbKeyValueItems list. Begin with every root
-     * leaf and then follow the next_pgno until there is
-     * no next page. When this function has returned we
-     * have all key/value items in the bdbKeyValueItems list.
+     * pages in the file and process all their items.
+     * Begin with the first leaf page and then follow the
+     * next_pgno until there is no next page. When this
+     * function has returned we will have iterated over
+     * all key/value items in the entire database
      */
     private def parseBerkeleyFile() throws Exception {
         // these are the only ones we support
@@ -337,19 +337,20 @@ class WalletDat {
         val last_pgno = head.lastPgno
 
         for (pgno : 0..last_pgno) {
-            // find a root leaf
+            // find all first leaves. Actually there are at
+            // least 2 trees in every wallet file, so we
+            // will find two first leaves.
             val page = new BerkeleyDBLeafPage(raf, pgno, pagesize)
-            if (page.isLBTREE && page.isRootPage){
+            if (page.isLBTREE && page.isFirstLeaf){
                 readAllLeafPages(page)
             }
         }
     }
 
     /**
-     * parse this leaf page and all next pages
-     * as indicated by next_pgno and add all their
-     * items into the bdbKeyValueItems list until
-     * there is no next page anymore.
+     * parse this leaf page and all following leaf pages
+     * as indicated by next_pgno and process all of their
+     * items until there is no next page anymore.
      */
     private def readAllLeafPages(BerkeleyDBLeafPage root) throws IOException {
         var page = root
@@ -360,8 +361,8 @@ class WalletDat {
     }
 
     /**
-     * parse this leaf page and add all
-     * its items to the bdbKeyValueItems list
+     * parse this leaf page and iterate over all
+     * its items, read and process each of them.
      */
     private def readLeafPage(BerkeleyDBLeafPage page) {
         val count = page.entryCount
@@ -375,7 +376,7 @@ class WalletDat {
                 } else {
                     // odd number, item is a value,
                     // previous item was its key
-                    parseKeyValuePair(currentKey, item)
+                    processKeyValuePair(currentKey, item)
                     currentKey = null
                 }
             }
@@ -411,7 +412,7 @@ abstract class BerkeleyDBPage {
         b.getInt(16)
     }
 
-    def isRootPage() {
+    def isFirstLeaf() {
         prevPgno == 0
     }
 
