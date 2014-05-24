@@ -1,3 +1,7 @@
+/**
+ * (c) 2014 Bernd Kreuss
+ */
+
 package prof7bit.bitcoin.wallettool.fileformats
 
 import com.google.bitcoin.core.ECKey
@@ -25,13 +29,17 @@ import org.spongycastle.crypto.params.ParametersWithIV
 import prof7bit.bitcoin.wallettool.core.KeyObject
 import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
 
+/**
+ * Wallet.dat import handler. This handler does not need any
+ * non-java dependency to read the Berkeley-db B-tree files.
+ * Reverse engineered with inspiration from pywallet.py,
+ * db_page.h, db_dump and a hex editor.
+ */
 class WalletDatHandler extends AbstractImportExportHandler {
     val log = LoggerFactory.getLogger(this.class)
 
     /**
-     * Try to parse keys from a bitcoin-core wallet.dat file.
-     * Reverse engineered with inspiration from pywallet.py,
-     * db_page.h, db_dump and a hex editor.
+     * Try to import keys and labels from a bitcoin-core wallet.dat file.
      */
     override load(File file, String password, String password2) throws Exception {
 
@@ -183,7 +191,7 @@ class WalletDat {
         val hash = key.readString
         val name = value.readString
         log.trace("found: type 'name' {} {}", hash, name)
-        rawKeyList.addName(hash, name)
+        rawKeyList.addLabel(hash, name)
     }
 
     private def parseKey(ByteBuffer key, ByteBuffer value) {
@@ -300,12 +308,20 @@ class WalletDat {
         }
     }
 
+    /**
+     * Return the collection of all WalletDatRawKeyData objects.
+     * This is used by the importer after the wallet has been
+     * completely parsed and decrypted.
+     */
     def getKeys() {
         rawKeyList.keyData.values
     }
 
+    /**
+     * get the label for a bitcoin address or "" if not found.
+     */
     def getAddrLabel(String addr){
-        rawKeyList.getName(addr)
+        rawKeyList.getLabel(addr)
     }
 
 
@@ -542,12 +558,35 @@ class BerkeleyDBHeaderPage extends BerkeleyDBPage {
 
 /**
  * Maintains collections of raw key data objects
- * and names while they are parsed from wallet.dat
+ * and labels while they are parsed from wallet.dat
  */
 class WalletDatRawKeyDataList {
+    /**
+     * the keys in this map are indexed by their public key
+     * since this is also the way Bitcoin handles it.
+     * Because we cannot directly use a byte[] as index of
+     * a hash map (byte[] lacks proper implementation of
+     * equals() and other comparable methods we are wrapping
+     * it into a ByteBuffer which is a lightweight and simple
+     * solution to this problem.
+     */
     public val Map<ByteBuffer, WalletDatRawKeyData> keyData = new HashMap
-    public val Map<String, String> names = new HashMap
 
+    /**
+     * we are collecting the labels in a separate map because
+     * they are indexed by bitcoin address rather than public
+     * key and at this stage (while still parsing stuff from
+     * the bdb file) its just simpler that way. May higher
+     * layers at a later time take care of combining them.
+     */
+    public val Map<String, String> labels = new HashMap
+
+    /**
+     * @param pub byte array with public key
+     * @return WalletDatRawKeyData object for this key
+     * or a newly created instance of such (that was
+     * added to the map) if it was not yet in the map.
+     */
     def findOrAddNew(byte[] pub){
         var key = getKeyData(pub)
         if (key == null){
@@ -558,12 +597,20 @@ class WalletDatRawKeyDataList {
         return key
     }
 
-    def addName(String hash, String name){
-        names.put(hash, name)
+    /**
+     * @param addr the bitcoin address
+     * @param label to assign to this address
+     */
+    def addLabel(String addr, String label){
+        labels.put(addr, label)
     }
 
-    def getName(String hash){
-        var result = names.get(hash)
+    /**
+     * @param the bitcoin address
+     * @return the label or "" if not found.
+     */
+    def getLabel(String addr){
+        var result = labels.get(addr)
         if (result == null){
             result = ""
         }
@@ -584,6 +631,15 @@ class WalletDatRawKeyDataList {
         key.private_key = unencrypted
     }
 
+    /**
+     * This adds a flag to the key to mark it as "reserve",
+     * this is done for all keys that are mentioned in the
+     * "pool" list in the wallet file, so we can later
+     * label them differently, otherwise there is nothing
+     * special about these keys, they are treated like all
+     * other keys, its up to the user to decide whether to
+     * use that label for anything or just ignore it.
+     */
     def addPoolFlag(byte[] pub){
         val key = findOrAddNew(pub)
         key.pool = true
@@ -591,13 +647,19 @@ class WalletDatRawKeyDataList {
 
     def clear(){
         keyData.clear
-        names.clear
+        labels.clear
     }
 }
 
 
 /**
- * raw key data for a single key parsed from wallet.dat
+ * Raw key data for a single key parsed from wallet.dat
+ * Objects of this type are stored in a map inside the
+ * WalletDatRawKeyDataList container which is populated
+ * during parsing the wallet. After completely reading
+ * and optionally decrypting the wallet this contains
+ * all information about a key with the only exception
+ * of label which is stored in a separate map.
  */
 class WalletDatRawKeyData {
     public var byte[] encrypted_private_key
@@ -660,17 +722,7 @@ class WalletDatCrypter {
         val plaintext = newByteArrayOfSize(size)
         val processLength = cipher.processBytes(ciphertext, 0, ciphertext.length, plaintext, 0)
         val doFinalLength = cipher.doFinal(plaintext, processLength);
-        return removePadding(plaintext, processLength + doFinalLength)
-    }
-
-    def removePadding(byte[] plaintext, int length){
-        if (length == plaintext.length){
-            return plaintext
-        } else {
-            val result = newByteArrayOfSize(length)
-            System.arraycopy(plaintext, 0, result, 0, length)
-            return result
-        }
+        return plaintext.take(processLength + doFinalLength)
     }
 
     def getKeyParamFromPass(String pass, byte[] salt, int nDerivationIterations) throws UnsupportedEncodingException {
@@ -687,6 +739,11 @@ class WalletDatCrypter {
         cipher.init(forEnryption, key)
     }
 
+    /**
+     * concatenate passbytes and salt and then apply nDerivationIterations iterations of sha512
+     * and return a new byte array of 64 bytes containing the result. This is used for deriving
+     * key and iv from the wallet password.
+     */
     def stretchPass(String pass, byte[] salt, int nDerivationIterations) throws UnsupportedEncodingException {
         var passbytes = pass.getBytes("UTF-8")
         var data = newByteArrayOfSize(64)
@@ -703,8 +760,9 @@ class WalletDatCrypter {
     }
 
     /**
-     * apply sha256 twice
-     * @return sha256(sha256(data))
+     * apply sha256 double hash
+     * @param data byte array to be hashed
+     * @return new byte array containing sha256(sha256(data))
      */
     def doubleHash(byte[] data){
         val sha = new SHA256Digest
