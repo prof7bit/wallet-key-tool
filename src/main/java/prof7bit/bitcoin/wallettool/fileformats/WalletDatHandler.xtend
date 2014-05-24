@@ -352,8 +352,8 @@ class WalletDat {
      * as indicated by next_pgno and process all of their
      * items until there is no next page anymore.
      */
-    private def readAllLeafPages(BerkeleyDBLeafPage root) throws IOException {
-        var page = root
+    private def readAllLeafPages(BerkeleyDBLeafPage first) throws IOException {
+        var page = first
         while (page.hasNextPage){
             readLeafPage(page)
             page = page.nextLeafPage
