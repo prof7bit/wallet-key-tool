@@ -336,7 +336,7 @@ class WalletDat {
         val pagesize = head.pageSize
         val last_pgno = head.lastPgno
 
-        for (pgno : 0..<last_pgno) {
+        for (pgno : 0..last_pgno) {
             // find all first leaves. Actually there are at
             // least 2 trees in every wallet file, so we
             // will find two first leaves.
