@@ -386,7 +386,7 @@ class WalletDat {
 
 abstract class BerkeleyDBPage {
     // page types
-    static val P_LBTREE    = 5   /* Btree leaf. */
+    static val P_LBTREE    = 5   /* B-tree leaf. */
 
     protected var ByteBuffer b
     protected var RandomAccessFile raf
