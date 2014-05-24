@@ -69,7 +69,7 @@ class WalletDatHandler extends AbstractImportExportHandler {
 
             if (Arrays.equals(ecKey.pubKey, rawKey.public_key)) {
                 val wktKey = new KeyObject(ecKey, params)
-                val addr = ecKey.toAddress(walletKeyTool.params).toString
+                val addr = ecKey.toAddress(params).toString
                 if (rawKey.pool){
                     wktKey.label = "(reserve)"
                 } else {
