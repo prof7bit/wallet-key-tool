@@ -10,3 +10,5 @@ xtend-gen/
 
 /.README.md.html
 /make_exe.sh
+/wallet-key-tool.exe
+/wallet-key-tool.jar
