@@ -108,6 +108,11 @@ class WalletDatHandler extends AbstractImportExportHandler {
     }
 }
 
+/**
+ * Parse a wallet.dat file and provide access
+ * to its keys. This class can not be used to
+ * write or create new wallets, its read-only.
+ */
 class WalletDat {
     val log = LoggerFactory.getLogger(this.class)
 
@@ -130,6 +135,17 @@ class WalletDat {
     var int mkey_nDerivationIterations
     var String mkey_other_params
 
+    /**
+     * Parse the file (or throw exception if unreadable).
+     * If the constructor returns then this WalletDat
+     * Object will hold collections of all parsed keys
+     * that can be read with the public methods that
+     * are provided for this purpose. It can only read
+     * existing and not write. The method isEncrypted()
+     * can be used to test whether it is encrypted and
+     * the decrypt() method should be used to decrypt
+     * all keys.
+     */
     new (File file) throws Exception {
         try {
             log.info("opening file {}", file)
@@ -240,6 +256,14 @@ class WalletDat {
         log.trace("found: type 'pool' n={}", n)
     }
 
+    /**
+     * @return true if the wallet contains an encrypted
+     * master-key which means all keys are encrypted.
+     */
+    def isEncrypted(){
+        mkey_encrypted_key != null
+    }
+
     private def readString(ByteBuffer buf) {
         new String(buf.readSizePrefixedByteArray)
     }
@@ -273,13 +297,20 @@ class WalletDat {
         }
     }
 
-
     /**
-     * Decrypt (if encrypted) the keys in the raw key list,
-     * do nothing if they are not encrypted
+     * Decrypt (if encrypted) the keys in the raw key list.
+     * If the wallet is not encrypted this does nothing.
+     * After decryption succeeded the keys can be accessed
+     * through the other methods, if it fails an exception
+     * might be thrown. Because it is not guaranteed that
+     * it will always throw when the password was wrong the
+     * code that will later try to use the decrypted keys
+     * must check that public and private keys actually make
+     * sense and fit together (which the importer will do
+     * anyways).
      */
     def decrypt(String password) throws Exception {
-        if (mkey_encrypted_key != null){
+        if (encrypted){
             if (password == null){
                 throw new FormatFoundNeedPasswordException
             }
@@ -311,7 +342,10 @@ class WalletDat {
     /**
      * Return the collection of all WalletDatRawKeyData objects.
      * This is used by the importer after the wallet has been
-     * completely parsed and decrypted.
+     * completely parsed and decrypted. They are not checked for
+     * consistency or decryption errors, this must be done
+     * separately by the application that uses them (must check
+     * that private key and public key actually fit together)!
      */
     def getKeys() {
         rawKeyList.keyData.values
@@ -400,6 +434,15 @@ class WalletDat {
     }
 }
 
+/**
+ * Abstract base class for all bdb pages. A Page is a block
+ * of the file of fixed size, the entire file is made up of
+ * such pages. There are several types of pages but all of
+ * them share a minimum of information like page number,
+ * next/previous page, page type, etc. This class does not
+ * expose all these fields, only the bare minimum needed to
+ * read through a b-tree file.
+ */
 abstract class BerkeleyDBPage {
     // page types
     static val P_LBTREE    = 5   /* B-tree leaf. */
@@ -446,7 +489,13 @@ abstract class BerkeleyDBPage {
 }
 
 /**
- * this is a leaf page, it contains all the data
+ * this is a leaf page, it contains all the data. Data
+ * is organized as key/value pairs. Each of them consists
+ * of two entries, the page also contains a lookup table
+ * to find the offsets of these data items to be able to
+ * simply access them by index number. Even index numbers
+ * are the key and the odd number directly following it is
+ * its value. Its pretty simple actually.
  */
 class BerkeleyDBLeafPage extends BerkeleyDBPage {
     static val SIZE_LEAF_HEADER = 26
@@ -529,7 +578,13 @@ class BerkeleyDBLeafPage extends BerkeleyDBPage {
 }
 
 /**
- * this is only used for page 0 to read magic, version, page size, etc.
+ * This is only used for page #0 to read magic, version,
+ * page size, etc. Although we read only the first few
+ * bytes it should be noted that this is also a complete
+ * page, its just mostly empty. More similar meta data
+ * pages might appear later in the file but we only care
+ * about the first one right at the start of the file,
+ * it contains all we need.
  */
 class BerkeleyDBHeaderPage extends BerkeleyDBPage {
     static val SIZE_METADATA_HEADER = 72
@@ -660,6 +715,12 @@ class WalletDatRawKeyDataList {
  * and optionally decrypting the wallet this contains
  * all information about a key with the only exception
  * of label which is stored in a separate map.
+ *
+ * Note: during decryption there is no check performed
+ * that public and private key actually fit together,
+ * this must be checked by the application that is going
+ * to use these keys. The WalletDatHandler import handler
+ * will perform this check (its needed anyways).
  */
 class WalletDatRawKeyData {
     public var byte[] encrypted_private_key
