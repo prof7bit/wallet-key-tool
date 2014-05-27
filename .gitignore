@@ -8,7 +8,7 @@ xtend-gen/
 *.settings
 .DS_Store
 
-/.README.md.html
-/make_exe.sh
-/wallet-key-tool.exe
-/wallet-key-tool.jar
+.README.md.html
+make_exe.sh
+*.exe
+*.jar

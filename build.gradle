@@ -8,6 +8,11 @@ buildscript {
     }
 }
 
+version = "1.4.2"
+ext {
+    mainClassName = "prof7bit.bitcoin.wallettool.core.Main"
+}
+
 apply plugin: 'xtend'
 apply plugin: 'java'
 apply plugin: 'eclipse'
@@ -15,10 +20,9 @@ apply plugin: 'launch4j'
 
 launch4j {
     // for this task to work launch4j needs to be installed and on the PATH.
-    mainClassName = "prof7bit.bitcoin.wallettool.core.Main"
+    mainClassName = project.mainClassName
+    outfile = project.name + "-" + project.version + ".exe"
 }
-
-project.ext.mainClassName = "prof7bit.bitcoin.wallettool.core.Main"
 
 repositories {
     mavenCentral()
@@ -47,6 +51,7 @@ jar {
 
     manifest {
         attributes 'Main-Class': project.mainClassName
+        attributes 'Version': project.version
     }
 }
 
@@ -55,7 +60,3 @@ xtend {
     xtendAsPrimaryDebugSource = false
     hideSyntheticVariables = false
 }
-
-// disable xtend debug info entirely
-tasks.installMainXtendDebugInfo.enabled = false
-compileJava.destinationDir = sourceSets.main.output.classesDir
