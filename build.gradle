@@ -8,7 +8,7 @@ buildscript {
     }
 }
 
-version = "1.4.2"
+version = "1.4.3"
 ext {
     mainClassName = "prof7bit.bitcoin.wallettool.core.Main"
 }
