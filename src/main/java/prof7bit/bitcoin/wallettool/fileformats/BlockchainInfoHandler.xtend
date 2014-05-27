@@ -71,7 +71,7 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
         if (pass == null){
             throw new Exception("not possible without password")
         }
-        val decrypted = decrypt(payload, pass, iterations)
+        val decrypted = decryptWithPass(payload, pass, iterations)
         parseAndImport(decrypted, pass2)
     }
 
@@ -114,7 +114,7 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
             if (bciKey.has("priv")){
                 if (doubleEnc){
                     val doubleEncText = bciKey.getString("priv")
-                    priv = decrypt(doubleEncText, doubleEncSalt, pass2, doubleEncIter)
+                    priv = decryptWithPass(doubleEncText, doubleEncSalt + pass2, doubleEncIter)
                 } else {
                     priv = bciKey.getString("priv")
                 }
@@ -158,7 +158,7 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
      * @return decrypted plain text. This would be the JSON string representation of the wallet
      * @throws InvalidCipherTextException if decryption fails
      */
-    private def decrypt(String cipherText, String password, int iterations) throws InvalidCipherTextException {
+    private def decryptWithPass(String cipherText, String password, int iterations) throws InvalidCipherTextException {
         val cipherdata = Base64.decode(cipherText);
 
         //Separate the IV and cipher data
@@ -166,18 +166,6 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
         val input = copyOfRange(cipherdata, AESBlockSize, cipherdata.length);
 
         return decrypt(iv, input, password, iterations)
-    }
-
-    /**
-     * This is used to decrypt the individual key with the secondary password
-     * @param encPrivKey the base64 encoded encrypted private key (from the "priv" field)
-     * @param sharedKey used as a password salt (this is taken from the "sharedKey" field)
-     * @param password2 the secondary password for this wallet
-     * @param iterations as found in the "pbkdf2_iterations" field of the wallet
-     * @throws InvalidCipherTextException if decryption fails
-     */
-    private def decrypt(String encPrivKey, String sharedKey, String password2, int iterations) throws InvalidCipherTextException {
-        decrypt(encPrivKey, sharedKey + password2, iterations)
     }
 
     /**
@@ -211,16 +199,14 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
      * @return a newly initialized Cipher object usable to encrypt or decrypt the data from blockchain.info
      */
     private def createCipher(String password, byte[] iv, int PBKDF2Iterations, Boolean forEncryption){
-        val generator = new PKCS5S2ParametersGenerator
         val passbytes = PBEParametersGenerator.PKCS5PasswordToUTF8Bytes(password.toCharArray())
+
+        val generator = new PKCS5S2ParametersGenerator
         generator.init(passbytes, iv, PBKDF2Iterations)
-        val keyParam = generator.generateDerivedParameters(AESKeySize)
+        val keyParams = new ParametersWithIV(generator.generateDerivedParameters(AESKeySize), iv)
 
-        val params = new ParametersWithIV(keyParam, iv)
-
-        val padding = new ISO10126d2Padding
-        val cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESEngine()), padding)
-        cipher.init(forEncryption, params)
+        val cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESEngine()), new ISO10126d2Padding)
+        cipher.init(forEncryption, keyParams)
         return cipher
     }
 
