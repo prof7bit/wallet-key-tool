@@ -7,6 +7,7 @@ import com.google.common.base.Charsets
 import com.google.common.io.Files
 import java.io.File
 import java.math.BigInteger
+import org.json.JSONException
 import org.json.JSONObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -20,8 +21,8 @@ import org.spongycastle.crypto.paddings.PaddedBufferedBlockCipher
 import org.spongycastle.crypto.params.ParametersWithIV
 import org.spongycastle.util.encoders.Base64
 import prof7bit.bitcoin.wallettool.core.KeyObject
-import prof7bit.bitcoin.wallettool.exceptions.NeedSecondaryPasswordException
 import prof7bit.bitcoin.wallettool.exceptions.FormatFoundNeedPasswordException
+import prof7bit.bitcoin.wallettool.exceptions.NeedSecondaryPasswordException
 
 /**
  * Strategy to handle the blockchain.info
@@ -61,7 +62,7 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
                 // we just need to ask for a password now
                 throw new FormatFoundNeedPasswordException
             }
-        } catch (Exception e) {
+        } catch (JSONException e) {
             // ... then it can only be version 1
             iterations = DefaultPBKDF2Iterations
             payload = fileContents
