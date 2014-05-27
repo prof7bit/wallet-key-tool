@@ -198,10 +198,7 @@ class BlockchainInfoHandler extends AbstractImportExportHandler{
         len = len + cipher.doFinal(buf, len)
 
         // remove padding
-        val out = newByteArrayOfSize(len)
-        System.arraycopy(buf, 0, out, 0, len);
-
-        return new String(out, Charsets.UTF_8);
+        return new String(buf.take(len), Charsets.UTF_8);
     }
 
     /**
