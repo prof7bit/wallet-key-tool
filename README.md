@@ -51,7 +51,7 @@ if you want to see stack traces then use TRACE.
 
 If you just want to dump the contents of a wallet to the
 console with no GUI interaction then you can pass it a file
-name, if you do this then it will not attemt to open any
+name, if you do this then it will not attempt to open any
 graphical user interface, it will just dump the wallet contents
 to stdout and exit. Note that the format of the dump is still
 subject to change, keep this in mind when writing a parser
